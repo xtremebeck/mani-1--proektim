@@ -58,9 +58,9 @@
         <div class="metrics" id="metrics"></div>
         <div class="grid">
           <section class="panel no-print">
-            <h2>Redeem a voucher</h2>
-            <p class="city-meta">Ask the traveller to show the code from their Rewards tab.</p>
-            <input id="voucher" placeholder="UZQ-TAS-XXXXXX" autocapitalize="characters" />
+            <h2>Redeem a voucher or coupon</h2>
+            <p class="city-meta">Type the code the traveller shows in their Rewards tab (city vouchers and partner coupons).</p>
+            <input id="voucher" placeholder="UZQ-XXXXXX or UZQ-TAS-XXXXXX" autocapitalize="characters" />
             <button id="redeem" type="button">Redeem</button>
             <p id="redeem-result"></p>
           </section>
@@ -70,8 +70,9 @@
           </section>
         </div>
         <div class="grid" id="cities"></div>
+        <section class="panel"><h2>Partner offers</h2><p class="city-meta">Sample partners for the demo. Coupons unlock when travellers finish a place, a city or reach a level.</p><table><thead><tr><th>Partner</th><th>Deal</th><th>Issued</th><th>Redeemed</th></tr></thead><tbody id="offers"></tbody></table></section>
         <div class="grid">
-          <section class="panel"><h2>Vouchers</h2><table><thead><tr><th>Voucher</th><th>City</th><th>Issued</th><th>Redeemed</th></tr></thead><tbody id="vouchers"></tbody></table></section>
+          <section class="panel"><h2>Vouchers</h2><table><thead><tr><th>Code</th><th>For</th><th>Issued</th><th>Redeemed</th></tr></thead><tbody id="vouchers"></tbody></table></section>
           <section class="panel"><h2>Recent travellers</h2><table><thead><tr><th>ID</th><th>Lang</th><th>Level</th><th>XP</th><th>Adventures</th><th>Last seen</th></tr></thead><tbody id="recent"></tbody></table></section>
         </div>
       </section>

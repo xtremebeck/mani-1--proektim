@@ -103,6 +103,65 @@ export const STRINGS = {
   }
 };
 
+// Strings for stories, new quest types and rewards.
+const EXTRA = {
+  en: {
+    navRewards: "Rewards", storyLabel: "MAIN STORY", chapterOf: "Chapter {n} of {total}", nextClue: "Your next clue", continueStory: "Continue the story",
+    storyDone: "Story complete", chapterLabel: "CHAPTER {n}", howToFind: "HOW TO FIND IT",
+    check: "Check", answerPlaceholder: "Your answer", wrongCode: "That's not the secret word — ask again!", findThem: "Where to find them",
+    codePlaceholder: "Secret word", confirm: "Confirm", testHint: "Test mode: the secret word is \"{code}\"", messageFrom: "Message from {name}",
+    timelineHint: "Tap in order — oldest first.", timelineWrong: "Wrong order — try again!",
+    huntStart: "Start the hunt", huntHot: "🔥 Hot — {d}", huntWarm: "🌤️ Warm — {d}", huntCold: "❄️ Cold — {d}", huntSearching: "Finding your location…",
+    huntSimulate: "Simulate arrival (test mode)", huntNoGps: "GPS is not available on this device.", tooFar: "Not there yet — keep looking!",
+    skipPhoto: "Skip photo (test mode)", photoRequired: "Take a photo of this spot to complete it.",
+    chapterComplete: "Chapter complete!", pieceFound: "You found a {piece}", pieceProgress: "{done} of {total} {piece}s",
+    cardUnlocked: "New collectible card", rewardsUnlocked: "Rewards unlocked", giftStamp: "Gift stamp",
+    wallet: "Your coupons", lockedOffers: "Unlock more deals", unlockPlace: "Finish {place}", unlockCity: "Conquer {city}", unlockLevel: "Reach level {n}",
+    showCashier: "Show this code to the cashier", validUntil: "Valid until {date}", expired: "Expired", demoPartner: "Sample partner for the demo — real partners coming soon.",
+    cityVouchers: "City rewards", cards: "Collectible cards", giftStamps: "Gift stamps",
+    testMode: "Test mode", testModeHint: "Simulate GPS arrivals, skip photos and see secret words while testing at home.",
+    newCoupon: "🎁 New coupon: {partner}", newGift: "Gift stamp: {name}", couponsCount: "{n} active", noCoupons: "Complete adventures to unlock café, restaurant and shop deals.",
+    reasonStory: "Next chapter of your story", openProfile: "Profile"
+  },
+  uz: {
+    navRewards: "Sovg'alar", storyLabel: "ASOSIY HIKOYA", chapterOf: "{total} bobdan {n}-bob", nextClue: "Keyingi ishora", continueStory: "Hikoyani davom ettirish",
+    storyDone: "Hikoya yakunlandi", chapterLabel: "{n}-BOB", howToFind: "QANDAY TOPISH MUMKIN",
+    check: "Tekshirish", answerPlaceholder: "Javobingiz", wrongCode: "Bu maxfiy so'z emas — qayta so'rang!", findThem: "Qayerdan topish mumkin",
+    codePlaceholder: "Maxfiy so'z", confirm: "Tasdiqlash", testHint: "Test rejimi: maxfiy so'z — \"{code}\"", messageFrom: "{name}dan xabar",
+    timelineHint: "Tartib bilan bosing — eng eskisidan.", timelineWrong: "Tartib noto'g'ri — yana urinib ko'ring!",
+    huntStart: "Ovni boshlash", huntHot: "🔥 Issiq — {d}", huntWarm: "🌤️ Iliq — {d}", huntCold: "❄️ Sovuq — {d}", huntSearching: "Joylashuv aniqlanmoqda…",
+    huntSimulate: "Yetib kelishni simulyatsiya qilish (test)", huntNoGps: "Bu qurilmada GPS yo'q.", tooFar: "Hali yetib kelmadingiz — izlashda davom eting!",
+    skipPhoto: "Suratsiz o'tish (test rejimi)", photoRequired: "Yakunlash uchun shu joyni suratga oling.",
+    chapterComplete: "Bob yakunlandi!", pieceFound: "Siz {piece} topdingiz", pieceProgress: "{total} ta {piece}dan {done} tasi",
+    cardUnlocked: "Yangi kolleksiya kartasi", rewardsUnlocked: "Sovg'alar ochildi", giftStamp: "Sovg'a stampi",
+    wallet: "Kuponlaringiz", lockedOffers: "Ko'proq takliflarni oching", unlockPlace: "{place}ni yakunlang", unlockCity: "{city}ni zabt eting", unlockLevel: "{n}-darajaga yeting",
+    showCashier: "Bu kodni kassirga ko'rsating", validUntil: "{date} gacha amal qiladi", expired: "Muddati o'tgan", demoPartner: "Demo uchun namunaviy hamkor — haqiqiy hamkorlar tez orada.",
+    cityVouchers: "Shahar mukofotlari", cards: "Kolleksiya kartalari", giftStamps: "Sovg'a stamplari",
+    testMode: "Test rejimi", testModeHint: "Uyda sinash uchun GPS'ni simulyatsiya qilish, suratsiz o'tish va maxfiy so'zlarni ko'rish.",
+    newCoupon: "🎁 Yangi kupon: {partner}", newGift: "Sovg'a stampi: {name}", couponsCount: "{n} ta faol", noCoupons: "Kafe, restoran va do'kon takliflarini ochish uchun sarguzashtlarni yakunlang.",
+    reasonStory: "Hikoyangizning keyingi bobi", openProfile: "Profil"
+  },
+  ru: {
+    navRewards: "Награды", storyLabel: "ГЛАВНАЯ ИСТОРИЯ", chapterOf: "Глава {n} из {total}", nextClue: "Следующая подсказка", continueStory: "Продолжить историю",
+    storyDone: "История завершена", chapterLabel: "ГЛАВА {n}", howToFind: "КАК НАЙТИ",
+    check: "Проверить", answerPlaceholder: "Ваш ответ", wrongCode: "Это не секретное слово — спросите ещё раз!", findThem: "Где найти",
+    codePlaceholder: "Секретное слово", confirm: "Подтвердить", testHint: "Тестовый режим: секретное слово — «{code}»", messageFrom: "Сообщение от: {name}",
+    timelineHint: "Нажимайте по порядку — с самого старого.", timelineWrong: "Неверный порядок — попробуйте ещё!",
+    huntStart: "Начать охоту", huntHot: "🔥 Горячо — {d}", huntWarm: "🌤️ Тепло — {d}", huntCold: "❄️ Холодно — {d}", huntSearching: "Определяем местоположение…",
+    huntSimulate: "Симулировать прибытие (тест)", huntNoGps: "GPS недоступен на этом устройстве.", tooFar: "Ещё не на месте — ищите дальше!",
+    skipPhoto: "Пропустить фото (тестовый режим)", photoRequired: "Сфотографируйте это место, чтобы завершить квест.",
+    chapterComplete: "Глава пройдена!", pieceFound: "Вы нашли: {piece}", pieceProgress: "{done} из {total} ({piece})",
+    cardUnlocked: "Новая коллекционная карта", rewardsUnlocked: "Открыты награды", giftStamp: "Подарочный штамп",
+    wallet: "Ваши купоны", lockedOffers: "Откройте больше предложений", unlockPlace: "Пройдите: {place}", unlockCity: "Покорите: {city}", unlockLevel: "Достигните уровня {n}",
+    showCashier: "Покажите этот код кассиру", validUntil: "Действует до {date}", expired: "Истёк", demoPartner: "Пример партнёра для демо — настоящие партнёры скоро.",
+    cityVouchers: "Награды за города", cards: "Коллекционные карты", giftStamps: "Подарочные штампы",
+    testMode: "Тестовый режим", testModeHint: "Симуляция GPS, пропуск фото и подсказки секретных слов для тестов дома.",
+    newCoupon: "🎁 Новый купон: {partner}", newGift: "Подарочный штамп: {name}", couponsCount: "активных: {n}", noCoupons: "Проходите приключения, чтобы открыть скидки в кафе, ресторанах и магазинах.",
+    reasonStory: "Следующая глава вашей истории", openProfile: "Профиль"
+  }
+};
+for (const lang of Object.keys(EXTRA)) Object.assign(STRINGS[lang], EXTRA[lang]);
+
 export function translate(lang, key, vars = {}) {
   const template = STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? key;
   return template.replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? "");

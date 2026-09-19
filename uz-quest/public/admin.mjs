@@ -25,7 +25,8 @@ async function load() {
       ${city.funnel.map((place) => `<div class="funnel-row"><span>${escapeHtml(place.name)}</span><span class="bar"><i style="width:${(place.completed / max) * 100}%"></i></span><b>${place.completed}/${place.started}</b></div>`).join("")}
     </section>`;
   }).join("");
-  $("#vouchers").innerHTML = data.vouchers.map((v) => `<tr><td><code>${v.voucher}</code></td><td>${v.cityId}</td><td>${when(v.at)}</td><td>${v.redeemedAt ? when(v.redeemedAt) : "—"}</td></tr>`).join("") || `<tr><td colspan="4">No vouchers yet</td></tr>`;
+  $("#vouchers").innerHTML = data.vouchers.map((v) => `<tr><td><code>${v.voucher}</code></td><td>${v.kind === "coupon" ? "🎟️ " : "🏆 "}${escapeHtml(v.label)}</td><td>${when(v.at)}</td><td>${v.redeemedAt ? when(v.redeemedAt) : "—"}</td></tr>`).join("") || `<tr><td colspan="4">No vouchers yet</td></tr>`;
+  $("#offers").innerHTML = data.offers.map((o) => `<tr><td>${escapeHtml(o.partner)}</td><td>${escapeHtml(o.deal)}</td><td>${o.issued}</td><td>${o.redeemed}</td></tr>`).join("");
   $("#recent").innerHTML = data.recent.map((r) => `<tr><td>${r.id}</td><td>${r.lang}</td><td>${r.level}</td><td>${r.xp}</td><td>${r.adventures}</td><td>${when(r.lastSeenAt)}</td></tr>`).join("") || `<tr><td colspan="6">No travellers yet</td></tr>`;
 }
 

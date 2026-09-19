@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { JsonStore } from "./store.mjs";
 import { askGuide, guideAvailable } from "./guide.mjs";
-import { CITIES } from "../../public/shared/content.mjs";
+import { CITIES, OFFERS } from "../../public/shared/content.mjs";
 import { applyEvent, cityDoneCount, emptyState, levelInfo } from "../../public/shared/engine.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -14,6 +14,10 @@ const store = new JsonStore(process.env.DATA_FILE ?? path.join(appRoot, "data", 
 const port = Number.parseInt(process.env.PORT ?? "4174", 10);
 const host = process.env.HOST ?? "127.0.0.1";
 const adminKey = process.env.ADMIN_KEY ?? "uzquest-dev-admin";
+// Test-mode shortcuts (simulated GPS, skipped photos) are fine for demos; set
+// ALLOW_TEST_EVENTS=false once real partner rewards are handed out.
+const allowTest = process.env.ALLOW_TEST_EVENTS !== "false";
+const STATE_VERSION = emptyState().v;
 const MAX_EVENTS_PER_SYNC = 100;
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
@@ -56,7 +60,7 @@ async function sync(input) {
   return store.mutate((data) => {
     const now = Date.now();
     let device = data.devices[input.deviceId];
-    if (!device || device.state?.v !== 2) device = data.devices[input.deviceId] = { createdAt: now, lang: "en", events: [], state: emptyState() };
+    if (!device || device.state?.v !== STATE_VERSION) device = data.devices[input.deviceId] = { createdAt: now, lang: "en", events: [], state: emptyState() };
     device.lastSeenAt = now;
     device.lang = validLang(input.lang);
     const known = new Set(device.events.map((event) => event.id));
@@ -67,7 +71,7 @@ async function sync(input) {
       // Never trust a timestamp from the future.
       const event = { ...raw, at: Math.min(Number(raw.at), now) };
       delete event.photo; // photos stay on the device
-      const result = applyEvent(device.state, event);
+      const result = applyEvent(device.state, event, { allowTest });
       if (!result.ok) { rejected.push({ id: raw.id, error: result.error }); continue; }
       device.state = result.state;
       device.events.push({ ...event, receivedAt: now });
@@ -80,7 +84,7 @@ async function sync(input) {
 
 async function overview() {
   const data = await store.snapshot();
-  const devices = Object.entries(data.devices).filter(([, d]) => d.state?.v === 2);
+  const devices = Object.entries(data.devices).filter(([, d]) => d.state?.v === STATE_VERSION);
   const cities = CITIES.map((city) => {
     const started = devices.filter(([, d]) => city.places.some((place) => d.state.started[place.id])).length;
     const completed = devices.filter(([, d]) => cityDoneCount(d.state, city) === city.places.length).length;
@@ -95,8 +99,14 @@ async function overview() {
     };
   });
   const languages = devices.reduce((acc, [, d]) => ({ ...acc, [d.lang]: (acc[d.lang] ?? 0) + 1 }), {});
-  const vouchers = devices.flatMap(([, d]) => Object.entries(d.state.rewards).map(([cityId, reward]) => ({ cityId, voucher: reward.voucher, at: reward.at, redeemedAt: d.redeemed?.[cityId] ?? null })))
-    .sort((a, b) => b.at - a.at).slice(0, 50);
+  const cityVouchers = devices.flatMap(([, d]) => Object.entries(d.state.rewards).map(([cityId, reward]) => ({ kind: "city", label: cityId, voucher: reward.voucher, at: reward.at, redeemedAt: d.redeemed?.[cityId] ?? null })));
+  const couponCodes = devices.flatMap(([, d]) => Object.entries(d.state.coupons ?? {}).map(([offerId, coupon]) => ({ kind: "coupon", label: OFFERS.find((o) => o.id === offerId)?.partner.en ?? offerId, voucher: coupon.code, at: coupon.at, redeemedAt: d.redeemed?.[`coupon:${offerId}`] ?? null })));
+  const vouchers = [...cityVouchers, ...couponCodes].sort((a, b) => b.at - a.at).slice(0, 50);
+  const offers = OFFERS.map((offer) => ({
+    id: offer.id, partner: offer.partner.en, deal: offer.deal.en,
+    issued: devices.filter(([, d]) => d.state.coupons?.[offer.id]).length,
+    redeemed: devices.filter(([, d]) => d.redeemed?.[`coupon:${offer.id}`]).length
+  }));
   const totalXp = devices.reduce((sum, [, d]) => sum + d.state.xp, 0);
   return {
     metrics: {
@@ -105,7 +115,7 @@ async function overview() {
       quests: devices.reduce((sum, [, d]) => sum + Object.keys(d.state.quests).length, 0),
       averageXp: devices.length ? Math.round(totalXp / devices.length) : 0
     },
-    cities, languages, vouchers,
+    cities, languages, vouchers, offers,
     recent: devices.sort(([, a], [, b]) => b.lastSeenAt - a.lastSeenAt).slice(0, 15).map(([id, d]) => ({
       id: id.slice(0, 8), lang: d.lang, xp: d.state.xp, level: levelInfo(d.state.xp).level,
       adventures: Object.keys(d.state.places).length, lastSeenAt: d.lastSeenAt
@@ -117,13 +127,18 @@ async function redeem(voucher) {
   const code = String(voucher ?? "").trim().toUpperCase();
   return store.mutate((data) => {
     for (const device of Object.values(data.devices)) {
-      for (const [cityId, reward] of Object.entries(device.state.rewards)) {
-        if (reward.voucher !== code) continue;
-        device.redeemed ??= {};
-        if (device.redeemed[cityId]) return { status: 409, code: "ALREADY_REDEEMED", message: `Already redeemed on ${new Date(device.redeemed[cityId]).toISOString()}.` };
-        device.redeemed[cityId] = Date.now();
-        return { status: 200, body: { voucher: code, cityId, redeemedAt: device.redeemed[cityId] } };
-      }
+      // City vouchers are keyed by city id, partner coupons by "coupon:<offer id>".
+      const codes = [
+        ...Object.entries(device.state.rewards ?? {}).map(([cityId, reward]) => ({ key: cityId, code: reward.voucher, label: cityId })),
+        ...Object.entries(device.state.coupons ?? {}).map(([offerId, coupon]) => ({ key: `coupon:${offerId}`, code: coupon.code, label: OFFERS.find((o) => o.id === offerId)?.deal.en ?? offerId, expiresAt: coupon.expiresAt }))
+      ];
+      const match = codes.find((item) => item.code === code);
+      if (!match) continue;
+      device.redeemed ??= {};
+      if (device.redeemed[match.key]) return { status: 409, code: "ALREADY_REDEEMED", message: `Already redeemed on ${new Date(device.redeemed[match.key]).toISOString()}.` };
+      if (match.expiresAt && match.expiresAt < Date.now()) return { status: 410, code: "EXPIRED", message: "This coupon has expired." };
+      device.redeemed[match.key] = Date.now();
+      return { status: 200, body: { voucher: code, cityId: match.label, redeemedAt: device.redeemed[match.key] } };
     }
     return { status: 404, code: "VOUCHER_NOT_FOUND", message: "Voucher not found. Ask the traveller to open the app online so it can sync." };
   });
