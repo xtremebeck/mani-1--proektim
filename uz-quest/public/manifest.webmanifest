@@ -1,0 +1,19 @@
+{
+  "name": "UzQuest — Tashkent & Samarkand",
+  "short_name": "UzQuest",
+  "description": "Explore Uzbekistan through real-world quests, stamps and XP.",
+  "start_url": "./app/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07080c",
+  "theme_color": "#07080c",
+  "icons": [
+    {
+      "src": "assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

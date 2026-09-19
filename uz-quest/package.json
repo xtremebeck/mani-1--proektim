@@ -1,0 +1,16 @@
+{
+  "name": "uz-quest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "UzQuest - gamified quest travel app for Tashkent and Samarkand",
+  "scripts": {
+    "start": "node backend/src/server.mjs",
+    "test": "node --test backend/test/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "latest"
+  }
+}

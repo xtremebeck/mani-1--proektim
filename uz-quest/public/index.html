@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050507" />
+    <title>UzQuest — Uzbekistan, One Quest at a Time</title>
+    <meta name="description" content="UzQuest is a gamified travel app for Uzbekistan. Complete real-world quests in Tashkent and Samarkand, earn XP, collect digital passport stamps and unlock rewards." />
+    <meta property="og:title" content="UzQuest — Uzbekistan, One Quest at a Time" />
+    <meta property="og:description" content="Turn your trip to Tashkent and Samarkand into a real-world RPG adventure." />
+    <meta property="og:image" content="assets/screens/home.jpg" />
+    <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" />
+    <link rel="stylesheet" href="landing.css" />
+  </head>
+  <body>
+    <div class="bg-gradient" aria-hidden="true"></div>
+    <div class="bg-grid" aria-hidden="true"></div>
+
+    <nav class="nav">
+      <div class="nav-inner">
+        <a class="logo" href="#top"><img src="assets/app-icon.svg" alt="" /><span>UzQuest</span></a>
+        <div class="nav-links">
+          <a href="#features" data-t="navFeatures"></a>
+          <a href="#how" data-t="navHow"></a>
+          <a href="#cities" data-t="navCities"></a>
+          <a href="#partners" data-t="navPartners"></a>
+          <a href="#faq" data-t="navFaq"></a>
+        </div>
+        <div class="nav-right">
+          <div class="langs"><button data-lang="uz">UZ</button><button data-lang="en">EN</button><button data-lang="ru">RU</button></div>
+          <a class="btn primary nav-cta" href="app/" data-t="navCta"></a>
+          <button class="menu" id="menu" aria-label="Menu">☰</button>
+        </div>
+      </div>
+    </nav>
+
+    <main id="top">
+      <!-- HERO -->
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="badge"><i></i><span data-t="heroBadge"></span></span>
+          <h1 data-th="heroTitle"></h1>
+          <p class="lead" data-th="heroText"></p>
+          <div class="cta-row">
+            <a class="btn primary big" href="app/"><span data-t="heroCta"></span> →</a>
+            <a class="btn secondary big" href="#features" data-t="heroCta2"></a>
+          </div>
+        </div>
+        <div class="hero-phones">
+          <div class="glow"></div>
+          <div class="phone"><img src="assets/screens/onboarding.jpg" alt="Onboarding" /></div>
+          <div class="phone"><img src="assets/screens/quests.jpg" alt="Quests" /></div>
+          <div class="phone"><img src="assets/screens/home.jpg" alt="Adventure hub" /></div>
+          <div class="phone"><img src="assets/screens/complete.jpg" alt="Adventure complete" /></div>
+          <div class="phone"><img src="assets/screens/passport.jpg" alt="Digital passport" /></div>
+        </div>
+        <div class="dots"><i></i><i></i><i></i><i></i><i></i></div>
+        <p class="swipe" data-t="swipe"></p>
+
+        <div class="stats">
+          <div><b id="stat-places"></b><span data-t="statPlaces"></span></div>
+          <div><b id="stat-quests"></b><span data-t="statQuests"></span></div>
+          <div><b id="stat-cities"></b><span data-t="statCities"></span></div>
+          <div><b id="stat-langs"></b><span data-t="statLangs"></span></div>
+        </div>
+      </section>
+
+      <!-- FEATURES -->
+      <section class="section" id="features">
+        <header class="section-head reveal"><span class="kicker" data-t="featLabel"></span><h2 data-t="featTitle"></h2><p data-t="featText"></p></header>
+        <div class="features">
+          <article class="feature reveal"><span class="icon">🎯</span><h3 data-t="f1t"></h3><p data-t="f1d"></p></article>
+          <article class="feature reveal"><span class="icon">🧞</span><h3 data-t="f2t"></h3><p data-t="f2d"></p></article>
+          <article class="feature reveal"><span class="icon">✨</span><h3 data-t="f3t"></h3><p data-t="f3d"></p></article>
+          <article class="feature reveal"><span class="icon">🛂</span><h3 data-t="f4t"></h3><p data-t="f4d"></p></article>
+          <article class="feature reveal"><span class="icon">🎁</span><h3 data-t="f5t"></h3><p data-t="f5d"></p></article>
+          <article class="feature reveal"><span class="icon">🌙</span><h3 data-t="f6t"></h3><p data-t="f6d"></p></article>
+          <article class="feature reveal"><span class="icon">📸</span><h3 data-t="f7t"></h3><p data-t="f7d"></p></article>
+          <article class="feature reveal"><span class="icon">📶</span><h3 data-t="f8t"></h3><p data-t="f8d"></p></article>
+        </div>
+      </section>
+
+      <!-- HOW IT WORKS -->
+      <section class="section" id="how">
+        <header class="section-head reveal"><span class="kicker" data-t="howLabel"></span><h2 data-t="howTitle"></h2></header>
+        <ol class="steps">
+          <li class="reveal"><b>1</b><h3 data-t="s1t"></h3><p data-t="s1d"></p></li>
+          <li class="reveal"><b>2</b><h3 data-t="s2t"></h3><p data-t="s2d"></p></li>
+          <li class="reveal"><b>3</b><h3 data-t="s3t"></h3><p data-t="s3d"></p></li>
+          <li class="reveal"><b>4</b><h3 data-t="s4t"></h3><p data-t="s4d"></p></li>
+        </ol>
+      </section>
+
+      <!-- CITIES -->
+      <section class="section" id="cities">
+        <header class="section-head reveal"><span class="kicker" data-t="citiesLabel"></span><h2 data-t="citiesTitle"></h2></header>
+        <div class="cities reveal" id="city-cards"></div>
+      </section>
+
+      <!-- SCREENSHOTS -->
+      <section class="section" id="screens">
+        <header class="section-head reveal"><span class="kicker" data-t="shotsLabel"></span><h2 data-t="shotsTitle"></h2><p data-t="shotsText"></p></header>
+        <div class="shots-wrap">
+          <button class="arrow left" data-scroll="-1" aria-label="Previous">←</button>
+          <div class="shots" id="shots">
+            <figure><div class="phone"><img src="assets/screens/onboarding.jpg" alt="" loading="lazy" /></div><figcaption data-t="sh1"></figcaption></figure>
+            <figure><div class="phone"><img src="assets/screens/home.jpg" alt="" loading="lazy" /></div><figcaption data-t="sh2"></figcaption></figure>
+            <figure><div class="phone"><img src="assets/screens/quests.jpg" alt="" loading="lazy" /></div><figcaption data-t="sh3"></figcaption></figure>
+            <figure><div class="phone"><img src="assets/screens/complete.jpg" alt="" loading="lazy" /></div><figcaption data-t="sh4"></figcaption></figure>
+            <figure><div class="phone"><img src="assets/screens/passport.jpg" alt="" loading="lazy" /></div><figcaption data-t="sh5"></figcaption></figure>
+            <figure><div class="phone"><img src="assets/screens/guide.jpg" alt="" loading="lazy" /></div><figcaption data-t="sh6"></figcaption></figure>
+            <figure><div class="phone"><img src="assets/screens/map.jpg" alt="" loading="lazy" /></div><figcaption data-t="sh7"></figcaption></figure>
+          </div>
+          <button class="arrow right" data-scroll="1" aria-label="Next">→</button>
+        </div>
+      </section>
+
+      <!-- LIVE DEMO -->
+      <section class="section live" id="play">
+        <div class="live-copy reveal">
+          <span class="kicker" data-t="tryLabel"></span>
+          <h2 data-t="tryTitle"></h2>
+          <p data-t="tryText"></p>
+          <a class="btn primary big" href="app/" target="_blank" rel="noopener"><span data-t="tryOpen"></span> ↗</a>
+          <p class="small muted" data-t="tryPhone"></p>
+        </div>
+        <div class="live-phone reveal"><div class="phone device"><iframe id="live-frame" data-src="app/" title="UzQuest live demo" loading="lazy"></iframe></div></div>
+      </section>
+
+      <!-- PARTNERS -->
+      <section class="section" id="partners">
+        <div class="partners reveal">
+          <div>
+            <span class="kicker" data-t="partnersLabel"></span>
+            <h2 data-t="partnersTitle"></h2>
+            <p class="muted" data-t="partnersText"></p>
+            <a class="btn secondary" href="admin" data-t="partnersCta"></a>
+          </div>
+          <div class="partner-points">
+            <article><span>🚶</span><div><h3 data-t="p1t"></h3><p data-t="p1d"></p></div></article>
+            <article><span>🎟️</span><div><h3 data-t="p2t"></h3><p data-t="p2d"></p></div></article>
+            <article><span>📊</span><div><h3 data-t="p3t"></h3><p data-t="p3d"></p></div></article>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section class="section" id="faq">
+        <header class="section-head reveal"><span class="kicker" data-t="faqLabel"></span><h2 data-t="faqTitle"></h2></header>
+        <div class="faq reveal">
+          <details open><summary data-t="q1"></summary><p data-t="a1"></p></details>
+          <details><summary data-t="q2"></summary><p data-t="a2"></p></details>
+          <details><summary data-t="q3"></summary><p data-t="a3"></p></details>
+          <details><summary data-t="q4"></summary><p data-t="a4"></p></details>
+          <details><summary data-t="q5"></summary><p data-t="a5"></p></details>
+          <details><summary data-t="q6"></summary><p data-t="a6"></p></details>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="section">
+        <div class="final-cta reveal">
+          <h2 data-t="ctaTitle"></h2>
+          <p data-t="ctaText"></p>
+          <a class="btn primary big" href="app/"><span data-t="heroCta"></span> →</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div><a class="logo" href="#top"><img src="assets/app-icon.svg" alt="" /><span>UzQuest</span></a><p class="muted" data-t="footerText"></p></div>
+        <div><h4 data-t="footerProduct"></h4><a href="#features" data-t="navFeatures"></a><a href="#how" data-t="navHow"></a><a href="#cities" data-t="navCities"></a></div>
+        <div><h4 data-t="footerProject"></h4><a href="app/" data-t="footerDemo"></a><a href="admin" data-t="footerAdmin"></a><a href="#faq" data-t="navFaq"></a></div>
+      </div>
+      <p class="copy">© 2026 <span data-t="footerRights"></span></p>
+    </footer>
+
+    <script type="module" src="landing.mjs"></script>
+  </body>
+</html>
