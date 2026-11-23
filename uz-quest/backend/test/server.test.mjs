@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { CITIES } from "../../public/shared/content.mjs";
 import { dailyFor, dayKey } from "../../public/shared/engine.mjs";
-import { DEV_CODES, DEV_CODES_FILE, post, start } from "./support/server.mjs";
+import { DEV_CODES, DEV_CODES_FILE, post, readDevice, start } from "./support/server.mjs";
 
 test("a malformed URL gets a 400 and does not crash the server", async () => {
   const server = await start();
@@ -81,15 +81,22 @@ test("admin key guessing is rate-limited", async () => {
   } finally { await server.stop(); }
 });
 
-test("a corrupt data file stops startup with a clear message", async () => {
+test("a corrupt database or old data file stops startup with a clear message", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "uzq-test-"));
-  const file = path.join(dir, "store.json");
-  await writeFile(file, "{broken");
-  const server = await start({ DATA_FILE: file });
   try {
-    assert.equal(server.exitCode, 1);
-    assert.match(server.output(), /not valid JSON/);
-  } finally { await server.stop(); await rm(dir, { recursive: true, force: true }); }
+    const json = path.join(dir, "store.json");
+    await writeFile(json, "{broken");
+    const badJson = await start({ DATA_FILE: json });
+    assert.equal(badJson.exitCode, 1);
+    assert.match(badJson.output(), /not valid JSON/);
+    await badJson.stop();
+    const db = path.join(dir, "garbage.db");
+    await writeFile(db, "this is not a database ".repeat(200));
+    const badDb = await start({ DATABASE_FILE: db });
+    assert.equal(badDb.exitCode, 1);
+    assert.match(badDb.output(), /could not be opened/);
+    await badDb.stop();
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 test("stored events keep only known fields and responses carry security headers", async () => {
@@ -99,8 +106,7 @@ test("stored events keep only known fields and responses carry security headers"
     const response = await post(server.base, "/api/v1/sync", { deviceId: "device-test-0004", events: [{ id: "evt-padded-start", type: "start", placeId: place.id, at: Date.now(), junk: "x".repeat(100000) }] });
     assert.equal((await response.json()).accepted.length, 1);
     assert.equal(response.headers.get("x-content-type-options"), "nosniff");
-    const stored = JSON.parse(await (await import("node:fs/promises")).readFile(path.join(server.dir, "store.json"), "utf8"));
-    const event = stored.devices["device-test-0004"].events[0];
+    const event = readDevice(server.dbFile, "device-test-0004").events[0];
     assert.equal(event.junk, undefined);
     assert.equal(event.placeId, place.id);
   } finally { await server.stop(); }
@@ -195,4 +201,71 @@ test("guessing secret words is limited per address, in the check endpoint and in
     const data = await (await post(server.base, "/api/v1/sync", { deviceId: "device-test-meet2", events: [meetEvent("evt-meet-blocked", questId, DEV_CODES[questId])] })).json();
     assert.deepEqual(data.rejected, [{ id: "evt-meet-blocked", error: "TRY_LATER" }]);
   } finally { await server.stop(); }
+});
+
+// A device as the old JSON store kept it, with a city voucher and an unredeemed coupon.
+function legacyDevice(voucher, couponCode) {
+  return {
+    createdAt: 1, lastSeenAt: 2, lang: "uz",
+    events: [{ id: "evt-legacy-start", type: "start", placeId: CITIES[0].places[0].id, at: 1, receivedAt: 2 }],
+    state: { v: 3, xp: 900, started: {}, quests: {}, places: {}, dailies: {}, detox: {},
+      rewards: { tashkent: { at: 1, voucher } },
+      coupons: { "tas-bakery": { at: 1, expiresAt: Date.now() + 86400000, code: couponCode } } }
+  };
+}
+
+test("the old JSON store is imported once, kept on disk, and survives a restart", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "uzq-test-"));
+  const json = path.join(dir, "store.json"), db = path.join(dir, "uzquest.db");
+  await writeFile(json, JSON.stringify({ devices: { "device-legacy-01": legacyDevice("UZQ-TAS-LEG001", "UZQ-LEG001") } }));
+  const env = { DATA_FILE: json, DATABASE_FILE: db };
+  try {
+    const first = await start(env);
+    assert.equal(first.exitCode, null, first.output());
+    await access(`${json}.imported`);
+    await assert.rejects(access(json), "the original file is renamed, so it is not imported twice");
+    const admin = { "x-admin-key": "uzquest-dev-admin" };
+    assert.equal((await post(first.base, "/api/v1/admin/redeem", { voucher: "uzq-leg001" }, admin)).status, 200);
+    await first.stop();
+    const second = await start(env);
+    try {
+      const device = readDevice(db, "device-legacy-01");
+      assert.equal(device.state.xp, 900);
+      assert.equal(device.events[0].id, "evt-legacy-start");
+      assert.ok(device.redeemed["coupon:tas-bakery"], "the redemption from before the restart is still there");
+      assert.equal((await post(second.base, "/api/v1/admin/redeem", { voucher: "UZQ-LEG001" }, admin)).status, 409);
+      assert.equal((await post(second.base, "/api/v1/admin/redeem", { voucher: "UZQ-TAS-LEG001" }, admin)).status, 200);
+    } finally { await second.stop(); }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("an old JSON store is not imported into a database that already has data", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "uzq-test-"));
+  const json = path.join(dir, "store.json"), db = path.join(dir, "uzquest.db");
+  try {
+    const fresh = await start({ DATABASE_FILE: db });
+    await post(fresh.base, "/api/v1/sync", { deviceId: "device-test-0006", events: [] });
+    await fresh.stop();
+    await writeFile(json, JSON.stringify({ devices: { "device-legacy-02": legacyDevice("UZQ-TAS-LEG002", "UZQ-LEG002") } }));
+    const server = await start({ DATA_FILE: json, DATABASE_FILE: db });
+    assert.equal(server.exitCode, 1);
+    assert.match(server.output(), /not imported because the database already has data/);
+    assert.match(await readFile(json, "utf8"), /device-legacy-02/, "the file is left untouched");
+    await server.stop();
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("a code held by two travellers is refused instead of guessed", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "uzq-test-"));
+  const json = path.join(dir, "store.json");
+  await writeFile(json, JSON.stringify({ devices: {
+    "device-legacy-03": legacyDevice("UZQ-TAS-SAME01", "UZQ-ONE001"),
+    "device-legacy-04": legacyDevice("UZQ-TAS-SAME01", "UZQ-TWO002")
+  } }));
+  const server = await start({ DATA_FILE: json });
+  try {
+    const admin = { "x-admin-key": "uzquest-dev-admin" };
+    assert.equal((await post(server.base, "/api/v1/admin/redeem", { voucher: "UZQ-TAS-SAME01" }, admin)).status, 409);
+    assert.equal((await post(server.base, "/api/v1/admin/redeem", { voucher: "UZQ-TWO002" }, admin)).status, 200);
+  } finally { await server.stop(); await rm(dir, { recursive: true, force: true }); }
 });

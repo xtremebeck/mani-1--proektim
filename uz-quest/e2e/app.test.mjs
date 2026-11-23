@@ -4,8 +4,8 @@ import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { CITIES } from "../public/shared/content.mjs";
 import { dailyFor, dayKey } from "../public/shared/engine.mjs";
-import { DEV_CODES_FILE, start } from "../backend/test/support/server.mjs";
-import { launch, localState, newContext, onboard, openPage, outboxSize, playPlace, readStore, toastTexts, waitSynced } from "./support.mjs";
+import { DEV_CODES_FILE, readDevice, start } from "../backend/test/support/server.mjs";
+import { launch, localState, newContext, onboard, openPage, outboxSize, playPlace, toastTexts, waitSynced } from "./support.mjs";
 
 const tashkent = CITIES.find((city) => city.id === "tashkent");
 const [hazratiImam, chorsu] = tashkent.places;
@@ -46,7 +46,7 @@ describe("dev server: a traveller's first session", () => {
   test("progress syncs to the server without the photo", async () => {
     await waitSynced(page);
     const deviceId = await page.evaluate(() => JSON.parse(localStorage.getItem("uzq2-device")));
-    const device = (await readStore(server.dataFile)).devices[deviceId];
+    const device = readDevice(server.dbFile, deviceId);
     assert.equal(device.state.xp, (await localState(page)).xp);
     assert.doesNotMatch(JSON.stringify(device.events), /data:image/);
   });
@@ -204,7 +204,7 @@ describe("offline: the app works without a network and syncs later", () => {
     await context.setOffline(false);
     await waitSynced(page);
     const deviceId = await page.evaluate(() => JSON.parse(localStorage.getItem("uzq2-device")));
-    assert.ok((await readStore(server.dataFile)).devices[deviceId].state.quests[hazratiImam.quests[0].id]);
+    assert.ok(readDevice(server.dbFile, deviceId).state.quests[hazratiImam.quests[0].id]);
   });
 
   test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });

@@ -1,6 +1,5 @@
 // Shared helpers for the browser tests: launching Chromium and playing the app through its UI.
 import { chromium } from "playwright";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEV_CODES } from "../backend/test/support/server.mjs";
@@ -28,7 +27,6 @@ export const newContext = (browser) => browser.newContext({ viewport: { width: 4
 export const localState = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("uzq3-state")));
 export const outboxSize = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("uzq3-outbox") ?? "[]").length);
 export const toastTexts = (page) => page.locator("#toasts .toast").allTextContents();
-export const readStore = async (file) => JSON.parse(await readFile(file, "utf8"));
 
 export async function waitSynced(page) {
   await page.waitForFunction(() => JSON.parse(localStorage.getItem("uzq3-outbox") ?? "[]").length === 0, null, { timeout: 8000 });
