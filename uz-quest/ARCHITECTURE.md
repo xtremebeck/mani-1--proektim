@@ -59,7 +59,7 @@ flowchart TB
 | `backend/src/guide.mjs` | Hamroh with Claude | server |
 | `scripts/build.mjs` | Copies `public/` to `dist/` (without admin) for static hosting | build |
 
-Inside `public/app/`, imports only point downwards: `screens → components → core → shared`. Screens never import each other, with one exception: `place.mjs` uses its `hunt.mjs` and `photos.mjs` helpers, which report back through callbacks instead of importing `place.mjs`. A screen that starts something (the map, the detox timer, the GPS watch) stops it itself by registering with `onBeforeRender`. Every module must be listed in `SHELL` in `public/sw.js`; the offline browser test fails otherwise.
+Inside `public/app/`, imports only point downwards: `screens → components → core → shared`. Screens never import each other, with one exception: `place.mjs` uses its `hunt.mjs` and `photos.mjs` helpers, which report back through callbacks instead of importing `place.mjs`. A screen that starts something (the map, the detox timer, the GPS watch) stops it itself by registering with `onBeforeRender`. Every module must be listed twice: as `<link rel="modulepreload">` in `public/app/index.html`, so the browser fetches the whole graph in parallel instead of one import level at a time, and in `SHELL` in `public/sw.js`, so the app opens offline. `backend/test/static.test.mjs` fails if either list is missing a module or names a file that does not exist.
 
 ## Core ideas
 
@@ -133,7 +133,7 @@ The app detects the server through `GET /api/v1/health` and degrades on its own 
 | `GET /api/v1/admin/overview` | `x-admin-key` | Metrics, funnels per place, offers, vouchers, recent travellers |
 | `POST /api/v1/admin/redeem` | `x-admin-key` | Redeem a city voucher or partner coupon once |
 
-Everything else is served as a static file from `public/`, with protection against path traversal.
+Everything else is served as a static file from `public/`, with protection against path traversal. Text files of 1 KB or more are sent with brotli or gzip when the browser accepts it, and every file carries an `ETag`, so the repeated requests caused by `Cache-Control: no-cache` and the service worker's network-first fetch are answered with a body-less `304`.
 
 ### Data model (`data/uzquest.db`, SQLite)
 
