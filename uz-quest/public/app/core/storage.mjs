@@ -1,6 +1,6 @@
 // Everything the app keeps on the device: settings and progress in localStorage, photos in IndexedDB.
 // Every call swallows storage errors (private mode, quota), so the app keeps working without persistence.
-export const KEYS = { state: "uzq3-state", profile: "uzq2-profile", outbox: "uzq3-outbox", device: "uzq2-device", detox: "uzq2-detox", log: "uzq3-log" };
+export const KEYS = { state: "uzq3-state", profile: "uzq2-profile", outbox: "uzq3-outbox", device: "uzq2-device", detox: "uzq2-detox", log: "uzq3-log", auth: "uzq-auth" };
 export const store = {
   get(key, fallback) { try { const raw = localStorage.getItem(key); return raw == null ? fallback : JSON.parse(raw); } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage full or blocked */ } },

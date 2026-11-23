@@ -2,7 +2,7 @@
 // Everything else lives in core/ (state, sync, routing), components/ and screens/.
 import { locate } from "./core/location.mjs";
 import { registerScreens, render, route } from "./core/router.mjs";
-import { checkServer } from "./core/sync.mjs";
+import { checkServer, flush } from "./core/sync.mjs";
 import { renderCity } from "./screens/city.mjs";
 import { renderDone } from "./screens/done.mjs";
 import { renderExplore } from "./screens/explore.mjs";
@@ -21,7 +21,12 @@ window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); }
 window.addEventListener("online", () => { render(); checkServer(); });
 window.addEventListener("offline", render);
 bindPhotoInput();
-document.addEventListener("visibilitychange", () => { if (!document.hidden && route().name === "home") render(); });
+// Coming back to the app: refresh Home, and when logged in fetch progress from the other phones.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  if (route().name === "home") render();
+  flush();
+});
 
 render();
 checkServer();

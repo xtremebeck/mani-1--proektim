@@ -3,11 +3,13 @@ import { BADGES, GIFT_STAMPS, OFFERS } from "../../shared/content.mjs";
 import { applyEvent, earnedBadges, earnedGiftStamps, findQuest, levelInfo, replay } from "../../shared/engine.mjs";
 import { toast } from "./feedback.mjs";
 import { render } from "./router.mjs";
-import { session, testAllowed } from "./session.mjs";
+import { forgetAccount, session, testAllowed } from "./session.mjs";
 import { KEYS, store, uuid } from "./storage.mjs";
 import { L, t } from "./ui.mjs";
 
 export const apiUrl = (path) => new URL(`../api/v1/${path}`, location.href).href;
+// Request headers, with the session when logged in with Telegram.
+export const apiHeaders = () => ({ "Content-Type": "application/json", ...(session.auth && { Authorization: `Bearer ${session.auth.token}` }) });
 
 export function dispatch(partial) {
   const event = { id: uuid(), at: Date.now(), ...partial };
@@ -50,9 +52,16 @@ export function flush() {
 async function syncOutbox() {
   if (!session.server.online || !navigator.onLine) return;
   const outbox = store.get(KEYS.outbox, []);
-  if (!outbox.length) return;
+  // Logged in, an empty sync still brings progress made on the account's other phones.
+  if (!outbox.length && !session.auth) return;
   try {
-    const response = await fetch(apiUrl("sync"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId: session.deviceId, lang: session.profile.lang, events: outbox }) });
+    const response = await fetch(apiUrl("sync"), { method: "POST", headers: apiHeaders(), body: JSON.stringify({ deviceId: session.deviceId, lang: session.profile.lang, events: outbox }) });
+    if (response.status === 401 && session.auth) {
+      await forgetAccount();
+      toast(t("tgSessionLost"), "error");
+      render();
+      return;
+    }
     if (!response.ok) return;
     const data = await response.json();
     // TRY_LATER: the server did not judge the event yet (too many wrong secret words), so keep it queued.
@@ -61,6 +70,16 @@ async function syncOutbox() {
     store.set(KEYS.outbox, store.get(KEYS.outbox, []).filter((event) => !settled.has(event.id)));
     // A DUPLICATE means the server already has that progress; anything else never counted there.
     const dropped = new Set(judged.filter((item) => item.error !== "DUPLICATE").map((item) => item.id));
+    if (session.auth) {
+      // The account's state on the server is the truth (it includes the other phones), plus
+      // whatever this phone has not sent yet.
+      const before = JSON.stringify(session.state);
+      session.state = replay(store.get(KEYS.outbox, []), undefined, data.state);
+      store.set(KEYS.state, session.state);
+      if (dropped.size) toast(t("syncRejected"), "error");
+      if (JSON.stringify(session.state) !== before) render();
+      return;
+    }
     if (dropped.size && session.log) {
       session.log = session.log.filter((event) => !dropped.has(event.id));
       store.set(KEYS.log, session.log);
@@ -87,7 +106,9 @@ export async function checkMeetCode(questId, code) {
 }
 
 export async function checkServer() {
-  const wasAllowed = testAllowed();
+  // What the screens show from the server's answer; the first render happens before it arrives.
+  const shown = () => JSON.stringify([testAllowed(), session.server.guide, session.server.telegram]);
+  const before = shown();
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3500);
@@ -97,7 +118,8 @@ export async function checkServer() {
     session.server.online = data?.service === "uzquest-api";
     session.server.guide = Boolean(data?.guide);
     session.server.testEvents = data?.testEvents !== false;
-  } catch { session.server.online = false; session.server.guide = false; }
-  if (testAllowed() !== wasAllowed && session.profile.done) render();
+    session.server.telegram = data?.telegram ?? null;
+  } catch { session.server.online = false; session.server.guide = false; session.server.telegram = null; }
+  if (shown() !== before && session.profile.done) render();
   flush();
 }

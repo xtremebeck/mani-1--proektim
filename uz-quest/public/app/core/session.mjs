@@ -2,14 +2,16 @@
 // (session.state = …) instead of reassigning variables, so every module sees the same values.
 import { CITIES } from "../../shared/content.mjs";
 import { emptyState, findCity } from "../../shared/engine.mjs";
-import { KEYS, store, uuid } from "./storage.mjs";
+import { KEYS, photos, store, uuid } from "./storage.mjs";
 
 export const AVATARS = ["🧭", "🐫", "🦅", "🧕", "🧔", "👩‍🚀", "🦊", "🐯"];
 const guessLang = () => { const nav = (navigator.language || "en").toLowerCase(); return nav.startsWith("ru") ? "ru" : nav.startsWith("uz") ? "uz" : "en"; };
 
 export const session = {
   profile: null, state: null, log: null, deviceId: null,
-  server: { online: false, guide: false, testEvents: true },
+  server: { online: false, guide: false, testEvents: true, telegram: null },
+  auth: null, // { token, name, username } once logged in with Telegram
+  login: null, // { token, url, expiresAt } while a Telegram login waits for confirmation
   chat: [],
   position: null,
   lastCompletion: null
@@ -24,9 +26,22 @@ session.log = store.get(KEYS.log, null);
 if (!session.log && !session.state.xp && !Object.keys(session.state.started).length) { session.log = []; store.set(KEYS.log, session.log); }
 session.deviceId = store.get(KEYS.device, null);
 if (!session.deviceId) { session.deviceId = uuid(); store.set(KEYS.device, session.deviceId); }
+session.auth = store.get(KEYS.auth, null);
 
 // Test shortcuts follow the server's policy when it is reachable; the static build has no server.
 export const testAllowed = () => !session.server.online || session.server.testEvents;
 export const testMode = () => session.profile.testMode && testAllowed();
 export const city = () => findCity(session.profile.cityId) ?? CITIES[0];
 export const saveProfile = () => store.set(KEYS.profile, session.profile);
+
+// This phone starts over as a guest with a new device id. Progress made while logged in stays in
+// the Telegram account; logging in again brings it back.
+export function forgetAccount() {
+  [KEYS.auth, KEYS.state, KEYS.outbox, KEYS.detox].forEach(store.remove);
+  session.auth = null;
+  session.login = null;
+  session.state = emptyState();
+  session.log = []; store.set(KEYS.log, session.log);
+  session.deviceId = uuid(); store.set(KEYS.device, session.deviceId);
+  return photos.clear();
+}
