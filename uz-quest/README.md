@@ -100,6 +100,14 @@ npm test       # game rules and server tests
 
 To test on your phone over the same Wi-Fi, run `HOST=0.0.0.0 ADMIN_KEY=<your-key> npm start` (the server refuses to listen on the network with the dev key) and open `http://<your-PC-IP>:4174`. GPS and the camera need `https://`, so use the GitHub Pages link for real treasure hunts.
 
+**Telegram login (optional).** Create a bot with [@BotFather](https://t.me/BotFather) and start the server with `TELEGRAM_BOT_TOKEN=<token>`. The server polls Telegram for the bot's messages, so it needs no public URL. Do not set a webhook for the same bot, because long polling and a webhook cannot be used together. Profile then shows "Log in with Telegram":
+
+1. The app opens the bot.
+2. The traveller taps Start and confirms with "Yes, it's me".
+3. The phone is logged in.
+
+Progress from every phone the traveller logs in with is merged into the account, and a quest done twice counts once. Logging out starts the phone over; the account keeps the progress. Without a token the button is hidden.
+
 **Claude AI guide (optional).** Run `npm install`, then `ANTHROPIC_API_KEY=... npm start`. Without a key, Hamroh uses its built-in offline answers.
 
 **Static hosting.** `npm run build` writes `dist/`. GitHub Pages publishes it automatically on every push to `main`, after `npm test` and the browser tests pass. Pull requests run the same tests.
@@ -130,6 +138,7 @@ backend/src/                             ← zero-dependency Node server, sync A
 - **Infrastructure.**
   - Run with `NODE_ENV=production`, your own `ADMIN_KEY` and your own secret words file. The server will not start without either. Production mode also turns test events off.
   - Daily and detox XP is only accepted within 48 hours, and the API is rate-limited per IP. Behind a reverse proxy all clients share one IP, so move rate limiting to the proxy.
+  - Let travellers delete their Telegram account and its data. This is not built yet.
   - Back up `data/uzquest.db` regularly, for example `sqlite3 data/uzquest.db ".backup backup.db"`. That command is safe while the server runs. A plain file copy is only safe while it is stopped, because SQLite also keeps `-wal` and `-shm` files next to the database.
   - Use a commercial map tile provider.
   - Bump `CACHE` in `sw.js` on every release.
