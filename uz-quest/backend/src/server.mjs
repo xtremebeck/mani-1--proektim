@@ -6,7 +6,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { JsonStore } from "./store.mjs";
 import { askGuide, guideAvailable } from "./guide.mjs";
 import { CITIES, OFFERS } from "../../public/shared/content.mjs";
-import { applyEvent, cityDoneCount, emptyState, findCity, levelInfo } from "../../public/shared/engine.mjs";
+import { applyEvent, cityDoneCount, emptyState, findCity, findQuest, levelInfo, normalizeAnswer } from "../../public/shared/engine.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const publicRoot = path.join(appRoot, "public");
@@ -33,6 +33,31 @@ const MIME = {
 };
 
 await store.initialize();
+
+// Secret words for "meet a local" quests. They never ship to the browser: the partner's staff
+// tells them to the traveller on site, and only this server can check them. Production reads them
+// from MEET_CODES_FILE (default data/meet-codes.json, not in git); development falls back to the
+// public demo words in backend/meet-codes.dev.json.
+const meetCodesFile = process.env.MEET_CODES_FILE ?? path.join(appRoot, "data", "meet-codes.json");
+async function loadMeetCodes() {
+  let raw = null;
+  try { raw = await readFile(meetCodesFile, "utf8"); } catch (error) { if (error.code !== "ENOENT") throw error; }
+  if (raw == null && production) {
+    console.error(`Secret words for meet quests are missing. Create ${meetCodesFile} (see README) or set MEET_CODES_FILE.`);
+    process.exit(1);
+  }
+  const file = raw == null ? path.join(appRoot, "backend", "meet-codes.dev.json") : meetCodesFile;
+  let codes;
+  try { codes = JSON.parse(raw ?? await readFile(file, "utf8")); } catch { throw Error(`${file} is not valid JSON.`); }
+  const meetIds = CITIES.flatMap((city) => city.places.flatMap((place) => place.quests)).filter((quest) => quest.type === "meet").map((quest) => quest.id);
+  const missing = meetIds.filter((questId) => typeof codes[questId] !== "string" || !normalizeAnswer(codes[questId]));
+  if (missing.length) { console.error(`${file} has no secret word for: ${missing.join(", ")}`); process.exit(1); }
+  return { codes, file };
+}
+const { codes: meetCodes, file: meetCodesSource } = await loadMeetCodes();
+// Wrong secret words allowed per address per minute, across the check endpoint and sync, so the
+// words cannot be guessed from a dictionary.
+const MEET_GUESSES_PER_MINUTE = 10;
 
 class HttpError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -99,13 +124,15 @@ function cleanEvent(raw) {
   return event;
 }
 
-async function sync(input, canCreateDevice) {
+// limits.canCreateDevice(): may this address register another device?
+// limits.meetBlocked() / limits.meetWrong(): the wrong-secret-word budget of this address.
+async function sync(input, limits) {
   if (!validId(input.deviceId)) return { status: 400, code: "INVALID_DEVICE", message: "deviceId is required." };
   const events = Array.isArray(input.events) ? input.events.slice(0, MAX_EVENTS_PER_SYNC) : [];
   return store.mutate((data) => {
     const now = Date.now();
     let device = data.devices[input.deviceId];
-    if (!device && !canCreateDevice()) return { status: 429, code: "RATE_LIMITED", message: "Too many new devices from this address." };
+    if (!device && !limits.canCreateDevice()) return { status: 429, code: "RATE_LIMITED", message: "Too many new devices from this address." };
     if (!device || device.state?.v !== STATE_VERSION) device = data.devices[input.deviceId] = { createdAt: now, lang: "en", events: [], state: emptyState() };
     device.lastSeenAt = now;
     device.lang = validLang(input.lang);
@@ -116,7 +143,12 @@ async function sync(input, canCreateDevice) {
       if (known.has(raw.id)) { accepted.push(raw.id); continue; }
       // Never trust a timestamp from the future. Photos stay on the device.
       const event = { ...cleanEvent(raw), at: Math.min(Number(raw.at), now) };
-      const result = applyEvent(device.state, event, { allowTest, now });
+      // Out of guesses: do not judge the word at all (a "right" answer would leak it). The phone keeps
+      // TRY_LATER events and sends them again.
+      const isMeet = event.type === "quest" && !event.test && findQuest(event.questId)?.quest.type === "meet";
+      if (isMeet && limits.meetBlocked()) { rejected.push({ id: raw.id, error: "TRY_LATER" }); continue; }
+      const result = applyEvent(device.state, event, { allowTest, now, meetCodes });
+      if (result.error === "WRONG_CODE") limits.meetWrong();
       if (!result.ok) { rejected.push({ id: raw.id, error: result.error }); continue; }
       device.state = result.state;
       device.events.push({ ...event, receivedAt: now });
@@ -219,8 +251,23 @@ const server = createServer(async (req, res) => {
     if (route === "GET /api/v1/health") return send(res, 200, { status: "ok", service: "uzquest-api", guide: await guideAvailable(), testEvents: allowTest }, id);
     if (route === "POST /api/v1/sync") {
       if (rateLimit(req, "sync", 60)) return fail(res, 429, "RATE_LIMITED", "Too many requests.", id);
-      const result = await sync(await readBody(req), () => !rateLimit(req, "new-device", 10));
+      const result = await sync(await readBody(req), {
+        canCreateDevice: () => !rateLimit(req, "new-device", 10),
+        meetBlocked: () => rateLimit(req, "meet-guess", MEET_GUESSES_PER_MINUTE, { count: false }),
+        meetWrong: () => rateLimit(req, "meet-guess", MEET_GUESSES_PER_MINUTE)
+      });
       return result.status === 200 ? send(res, 200, result.body, id) : fail(res, result.status, result.code, result.message, id);
+    }
+    // Lets the app say "wrong word, ask again" on the spot instead of after the next sync.
+    // It records nothing; sync checks the word again.
+    if (route === "POST /api/v1/meet/check") {
+      if (rateLimit(req, "meet-guess", MEET_GUESSES_PER_MINUTE, { count: false })) return fail(res, 429, "TRY_LATER", "Too many wrong secret words. Try again in a minute.", id);
+      const input = await readBody(req);
+      const quest = findQuest(input.questId)?.quest;
+      if (quest?.type !== "meet") return fail(res, 400, "QUEST_NOT_FOUND", "Not a meet quest.", id);
+      const ok = normalizeAnswer(input.code) === normalizeAnswer(meetCodes[quest.id]);
+      if (!ok) rateLimit(req, "meet-guess", MEET_GUESSES_PER_MINUTE);
+      return send(res, 200, { ok }, id);
     }
     if (route === "POST /api/v1/guide") {
       if (rateLimit(req, "guide", 20)) return fail(res, 429, "RATE_LIMITED", "Too many requests.", id);
@@ -252,4 +299,4 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, host, () => console.log(`UzQuest: http://${host}:${port}  (admin: /admin, test events: ${allowTest ? "on" : "off"})`));
+server.listen(port, host, () => console.log(`UzQuest: http://${host}:${port}  (admin: /admin, test events: ${allowTest ? "on" : "off"}, secret words: ${path.relative(appRoot, meetCodesSource)})`));

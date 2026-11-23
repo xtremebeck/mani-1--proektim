@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { CITIES } from "../../public/shared/content.mjs";
 import { dailyFor, dayKey } from "../../public/shared/engine.mjs";
-import { post, start } from "./support/server.mjs";
+import { DEV_CODES, DEV_CODES_FILE, post, start } from "./support/server.mjs";
 
 test("a malformed URL gets a 400 and does not crash the server", async () => {
   const server = await start();
@@ -51,7 +51,7 @@ test("test events follow NODE_ENV and ALLOW_TEST_EVENTS", async () => {
     assert.equal((await (await fetch(`${dev.base}/api/v1/health`)).json()).testEvents, true);
     assert.equal((await (await post(dev.base, "/api/v1/sync", { deviceId: "device-test-0002", events: [event] })).json()).accepted.length, 1);
   } finally { await dev.stop(); }
-  const prod = await start({ NODE_ENV: "production", ADMIN_KEY: "a-real-secret-key" });
+  const prod = await start({ NODE_ENV: "production", ADMIN_KEY: "a-real-secret-key", MEET_CODES_FILE: DEV_CODES_FILE });
   try {
     assert.equal((await (await fetch(`${prod.base}/api/v1/health`)).json()).testEvents, false);
     const data = await (await post(prod.base, "/api/v1/sync", { deviceId: "device-test-0003", events: [event] })).json();
@@ -129,7 +129,7 @@ test("redeeming a voucher works once and an empty code is refused", async () => 
       const event = { id: `evt-redeem-${quest.id}`.slice(0, 64), type: "quest", questId: quest.id, at: at++ };
       if (quest.type === "quiz") event.answer = quest.answer;
       if (quest.type === "riddle") event.text = quest.answers[0];
-      if (quest.type === "meet") event.code = quest.code;
+      if (quest.type === "meet") event.code = DEV_CODES[quest.id];
       if (quest.type === "timeline") event.order = quest.order;
       if (quest.type === "photo") event.hasPhoto = true;
       if (quest.type === "hunt") Object.assign(event, { lat: quest.lat, lng: quest.lng, accuracy: 5 });
@@ -144,5 +144,55 @@ test("redeeming a voucher works once and an empty code is refused", async () => 
     assert.equal((await first.json()).label, city.name.en);
     assert.equal((await post(server.base, "/api/v1/admin/redeem", { voucher }, admin)).status, 409);
     assert.equal((await post(server.base, "/api/v1/admin/redeem", { voucher: "  " }, admin)).status, 400);
+  } finally { await server.stop(); }
+});
+
+const PROD_ENV = { NODE_ENV: "production", ADMIN_KEY: "a-real-secret-key" };
+const meetEvent = (id, questId, code) => ({ id, type: "quest", questId, code, at: Date.now() });
+
+test("a production server refuses to start without a secret word for every meet quest", async () => {
+  const missing = await start({ ...PROD_ENV, MEET_CODES_FILE: "/nonexistent/meet-codes.json" });
+  try {
+    assert.equal(missing.exitCode, 1);
+    assert.match(missing.output(), /Secret words for meet quests are missing/);
+  } finally { await missing.stop(); }
+  const dir = await mkdtemp(path.join(tmpdir(), "uzq-test-"));
+  const file = path.join(dir, "meet-codes.json");
+  await writeFile(file, JSON.stringify({ "tas-chorsu-meet": "only-one" }));
+  const partial = await start({ ...PROD_ENV, MEET_CODES_FILE: file });
+  try {
+    assert.equal(partial.exitCode, 1);
+    assert.match(partial.output(), /no secret word for: .*tas-plov-meet/);
+  } finally { await partial.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test("the server checks its own secret words, not the public demo ones", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "uzq-test-"));
+  const file = path.join(dir, "meet-codes.json");
+  const words = Object.fromEntries(Object.keys(DEV_CODES).map((id) => [id, `${id}-word-42`]));
+  await writeFile(file, JSON.stringify(words));
+  const server = await start({ ...PROD_ENV, MEET_CODES_FILE: file });
+  try {
+    const questId = "tas-chorsu-meet";
+    const check = async (code) => (await post(server.base, "/api/v1/meet/check", { questId, code })).json();
+    assert.deepEqual(await check(DEV_CODES[questId]), { ok: false });
+    assert.deepEqual(await check(words[questId].toUpperCase()), { ok: true });
+    assert.equal((await post(server.base, "/api/v1/meet/check", { questId: "tas-chorsu-riddle", code: "x" })).status, 400);
+    const sync = async (event) => (await post(server.base, "/api/v1/sync", { deviceId: "device-test-meet1", events: [event] })).json();
+    assert.deepEqual((await sync(meetEvent("evt-meet-demo-word", questId, DEV_CODES[questId]))).rejected, [{ id: "evt-meet-demo-word", error: "WRONG_CODE" }]);
+    assert.deepEqual((await sync(meetEvent("evt-meet-real-word", questId, words[questId]))).accepted, ["evt-meet-real-word"]);
+  } finally { await server.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test("guessing secret words is limited per address, in the check endpoint and in sync", async () => {
+  const server = await start();
+  try {
+    const questId = "tas-chorsu-meet";
+    for (let i = 0; i < 10; i++) assert.deepEqual(await (await post(server.base, "/api/v1/meet/check", { questId, code: `guess-${i}` })).json(), { ok: false });
+    const blocked = await post(server.base, "/api/v1/meet/check", { questId, code: DEV_CODES[questId] });
+    assert.equal(blocked.status, 429, "even the right word is not judged once the budget is spent");
+    // Sync does not judge meet events either; the phone keeps them and retries.
+    const data = await (await post(server.base, "/api/v1/sync", { deviceId: "device-test-meet2", events: [meetEvent("evt-meet-blocked", questId, DEV_CODES[questId])] })).json();
+    assert.deepEqual(data.rejected, [{ id: "evt-meet-blocked", error: "TRY_LATER" }]);
   } finally { await server.stop(); }
 });

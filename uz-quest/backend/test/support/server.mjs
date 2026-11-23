@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -6,6 +7,10 @@ import { fileURLToPath } from "node:url";
 
 const serverFile = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src/server.mjs");
 let nextPort = 4300 + Math.floor(Math.random() * 500);
+
+// The public demo secret words. A production server needs its own file (MEET_CODES_FILE).
+export const DEV_CODES_FILE = path.resolve(path.dirname(serverFile), "../meet-codes.dev.json");
+export const DEV_CODES = JSON.parse(readFileSync(DEV_CODES_FILE, "utf8"));
 
 // Starts a server on a fresh data file. Resolves once it listens, or with the exit code if it quits.
 export async function start(env = {}) {

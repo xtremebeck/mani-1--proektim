@@ -3,6 +3,7 @@ import { chromium } from "playwright";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEV_CODES } from "../backend/test/support/server.mjs";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -74,7 +75,7 @@ export async function playPlace(page, base, place, { realPhoto = false, onWrongR
         await card.locator("input").fill(quest.answers[0].toUpperCase());
         await card.locator("input").press("Enter");
         break;
-      case "meet": await card.locator("input").fill(quest.code); await card.locator("input").press("Enter"); break;
+      case "meet": await card.locator("input").fill(DEV_CODES[quest.id]); await card.locator("input").press("Enter"); break;
       case "timeline": for (const i of quest.order) await page.locator(`#q-${quest.id} [data-pick="${i}"]`).click(); break;
       case "hunt": await card.locator("[data-simulate]").click(); break;
       case "photo":

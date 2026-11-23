@@ -5,7 +5,7 @@ import { findPlace, findQuest, placeDone, placeProgress, placeXp, questRarity, q
 import { toast } from "../core/feedback.mjs";
 import { go, render } from "../core/router.mjs";
 import { saveProfile, session, testMode } from "../core/session.mjs";
-import { dispatch } from "../core/sync.mjs";
+import { checkMeetCode, dispatch } from "../core/sync.mjs";
 import { $, all, errorText, esc, gradient, L, rarityChip, t } from "../core/ui.mjs";
 import { activeHunt, startHunt, stopHunt } from "./hunt.mjs";
 import { loadQuestPhotos, takePhoto } from "./photos.mjs";
@@ -57,7 +57,7 @@ function questCard(quest, unlocked) {
     actions = `<form class="answer-form" data-riddle="${quest.id}"><input name="a" autocomplete="off" placeholder="${t("answerPlaceholder")}" required /><button class="btn primary small">${t("check")}</button></form>`;
   } else if (quest.type === "meet") {
     actions = `<form class="answer-form" data-meet="${quest.id}"><input name="a" autocomplete="off" placeholder="${t("codePlaceholder")}" required /><button class="btn primary small">${t("confirm")}</button></form>
-      ${testMode() ? `<small class="test-hint">🧪 ${t("testHint", { code: esc(quest.code) })}</small>` : ""}`;
+      ${testMode() ? `<button class="link" data-skip="${quest.id}">🧪 ${t("meetSkip")}</button>` : ""}`;
   } else if (quest.type === "timeline") {
     const picks = timelinePicks[quest.id] ?? [];
     actions = `<div class="timeline"><small>${t("timelineHint")}</small>${quest.items.map((item, i) => {
@@ -94,14 +94,26 @@ function bindPlace(screen, place) {
     const result = completeQuest(place, { questId: b.dataset.quest, answer: Number(b.dataset.answer) });
     if (result?.error === "WRONG_ANSWER") { b.classList.add("wrong"); b.disabled = true; toast(t("wrong"), "error"); }
   }));
-  const bindForm = (attr, field, wrongKey) => all(`[data-${attr}]`, screen).forEach((form) => form.addEventListener("submit", (e) => {
+  const markWrong = (input, key) => { input.classList.add("wrong"); input.select(); toast(t(key), "error"); setTimeout(() => input.classList.remove("wrong"), 500); };
+  all("[data-riddle]", screen).forEach((form) => form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const input = form.elements.a;
-    const result = completeQuest(place, { questId: form.dataset[attr], [field]: input.value });
-    if (result && !result.ok) { input.classList.add("wrong"); input.select(); toast(t(wrongKey), "error"); setTimeout(() => input.classList.remove("wrong"), 500); }
+    const result = completeQuest(place, { questId: form.dataset.riddle, text: form.elements.a.value });
+    if (result && !result.ok) markWrong(form.elements.a, "wrong");
   }));
-  bindForm("riddle", "text", "wrong");
-  bindForm("meet", "code", "wrongCode");
+  // Only the server knows the secret word, so ask it first and catch a wrong word on the spot.
+  // Offline, the word is accepted for now and the next sync confirms or removes it.
+  all("[data-meet]", screen).forEach((form) => form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (form.dataset.busy) return;
+    form.dataset.busy = "1";
+    const input = form.elements.a, questId = form.dataset.meet, code = input.value;
+    const verdict = await checkMeetCode(questId, code);
+    delete form.dataset.busy;
+    if (verdict === "wrong") return markWrong(input, "wrongCode");
+    if (verdict === "later") return toast(t("meetTryLater"), "error");
+    if (verdict === "offline") toast(t("meetPending"));
+    completeQuest(place, { questId, code });
+  }));
   all("[data-pick]", screen).forEach((b) => b.addEventListener("click", () => {
     const questId = b.dataset.quest, i = Number(b.dataset.pick);
     const quest = findQuest(questId).quest;

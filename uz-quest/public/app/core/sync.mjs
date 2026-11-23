@@ -55,10 +55,12 @@ async function syncOutbox() {
     const response = await fetch(apiUrl("sync"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId: session.deviceId, lang: session.profile.lang, events: outbox }) });
     if (!response.ok) return;
     const data = await response.json();
-    const settled = new Set([...data.accepted, ...data.rejected.map((item) => item.id)]);
+    // TRY_LATER: the server did not judge the event yet (too many wrong secret words), so keep it queued.
+    const judged = data.rejected.filter((item) => item.error !== "TRY_LATER");
+    const settled = new Set([...data.accepted, ...judged.map((item) => item.id)]);
     store.set(KEYS.outbox, store.get(KEYS.outbox, []).filter((event) => !settled.has(event.id)));
     // A DUPLICATE means the server already has that progress; anything else never counted there.
-    const dropped = new Set(data.rejected.filter((item) => item.error !== "DUPLICATE").map((item) => item.id));
+    const dropped = new Set(judged.filter((item) => item.error !== "DUPLICATE").map((item) => item.id));
     if (dropped.size && session.log) {
       session.log = session.log.filter((event) => !dropped.has(event.id));
       store.set(KEYS.log, session.log);
@@ -68,6 +70,20 @@ async function syncOutbox() {
       render();
     }
   } catch { /* retry later */ }
+}
+
+// Asks the server whether a meet quest's secret word is right, since only the server knows it.
+// Returns "ok", "wrong", "later" (too many wrong words), "offline" (the phone has no connection; the
+// next sync decides) or "unchecked" (no server to ask, e.g. the static demo).
+export async function checkMeetCode(questId, code) {
+  if (!navigator.onLine) return "offline";
+  if (!session.server.online) return "unchecked";
+  try {
+    const response = await fetch(apiUrl("meet/check"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ questId, code }) });
+    if (response.status === 429) return "later";
+    if (!response.ok) return "unchecked";
+    return (await response.json()).ok ? "ok" : "wrong";
+  } catch { return "unchecked"; }
 }
 
 export async function checkServer() {

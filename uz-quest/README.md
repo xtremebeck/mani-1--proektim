@@ -54,23 +54,33 @@ XP by rarity: Common 30 · Rare 50 · Epic 80 · Legendary 150. Finishing a chap
 
 ⚠️ The 8 partner offers in `shared/content.mjs` (`OFFERS`) are **sample partners marked "(demo)"**. Replace them with real signed partners before launch.
 
-### Secret words (for partner staff and testing)
+### Secret words (meet-a-local quests)
 
-| City | Place | Local | Secret word |
-|---|---|---|---|
-| Tashkent | Chorsu Bazaar | Ravshan aka (spice seller) | `zira` |
-| Tashkent | Plov Centre | Botir aka (plov master) | `qozon` |
-| Samarkand | Siab Bazaar | Dilnoza opa (baker) | `yulduz` |
-| Samarkand | Konigil | Usta Zarif (paper master) | `qog'oz` |
+In a real launch, a partner's staff member plays the "local" and tells travellers the secret word on site. The names are placeholders.
 
-In a real launch, a partner's staff member plays this person. The names are placeholders.
+The words **never ship to the browser**. Only the server knows them and checks them:
+
+- The app asks `POST /api/v1/meet/check` when a word is typed, so a wrong word is refused on the spot.
+- With no connection, the word counts for now, and the next sync confirms it or removes it.
+- Each address gets 10 wrong words per minute, across the check endpoint and sync, so the words cannot be guessed from a dictionary.
+
+| Environment | Where the words come from |
+|---|---|
+| Production (`NODE_ENV=production`) | `MEET_CODES_FILE`, default `data/meet-codes.json` (not in git). The server will not start without a word for every meet quest. |
+| Development | The same file if it exists, otherwise the public demo words in `backend/meet-codes.dev.json`. |
+
+The file maps quest ids to words, for example `{ "tas-chorsu-meet": "…", "tas-plov-meet": "…", "sam-siy-meet": "…", "sam-kon-meet": "…" }`. Spelling is forgiving, as with riddles.
+
+⚠️ **Do not reuse the demo words** (`zira`, `qozon`, `yulduz`, `qog'oz`). They are public in this repository and its history. Choose words that are not in the place's story (for example a word plus two digits), and change them if they leak.
+
+The static GitHub Pages demo has no server, so there any word is accepted.
 
 ## Test mode
 
 Test mode is **on by default** (Profile → 🧪 Test mode) so you can play everything from home:
 - "Simulate arrival" completes treasure hunts without GPS.
 - "Skip photo" completes photo spots without taking a picture.
-- The secret word is shown under each meet-a-local quest.
+- "Skip" completes meet-a-local quests without the secret word.
 
 Turn it off to experience the real thing. The server rejects simulated completions when `NODE_ENV=production` (or `ALLOW_TEST_EVENTS=false`); the app then hides the test buttons. Set `ALLOW_TEST_EVENTS=true` to force them on.
 
@@ -107,14 +117,14 @@ backend/src/                             ← zero-dependency Node server, sync A
 
 **Adding a place or quest.** Add it to `shared/content.mjs`. It appears everywhere automatically. The tests check that every quest has all three languages and a valid answer.
 
-**Engine.** The same `engine.mjs` runs on the phone and on the server. It checks answers, secret words, timeline order and GPS distance.
+**Engine.** The same `engine.mjs` runs on the phone and on the server. It checks answers, timeline order and GPS distance. Secret words are only checked on the server, which passes them to the engine.
 
 ## Before real users
 
 - **Check every place on site.** Coordinates are approximate, especially the treasure-hunt points. Check the quiz and riddle facts, and opening hours.
-- **Sign real partners.** Replace the demo offers, and agree secret words with the staff who play the "locals".
+- **Sign real partners.** Replace the demo offers, and agree secret words with the staff who play the "locals". Put the words in `data/meet-codes.json` on the server (see [Secret words](#secret-words-meet-a-local-quests)).
 - **Infrastructure.**
-  - Run with `NODE_ENV=production` and your own `ADMIN_KEY` (the server will not start without it). This also turns test events off.
+  - Run with `NODE_ENV=production`, your own `ADMIN_KEY` and your own secret words file. The server will not start without either. Production mode also turns test events off.
   - Daily and detox XP is only accepted within 48 hours, and the API is rate-limited per IP. Behind a reverse proxy all clients share one IP, so move rate limiting to the proxy.
   - Move from the JSON file store to PostgreSQL.
   - Use a commercial map tile provider.

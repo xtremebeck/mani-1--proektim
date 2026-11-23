@@ -4,8 +4,8 @@
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { CITIES, OFFERS } from "../public/shared/content.mjs";
-import { start } from "../backend/test/support/server.mjs";
-import { launch, localState, newContext, onboard, openPage, playPlace, readStore, waitSynced } from "./support.mjs";
+import { DEV_CODES, start } from "../backend/test/support/server.mjs";
+import { launch, localState, newContext, onboard, openPage, outboxSize, playPlace, readStore, waitSynced } from "./support.mjs";
 
 const tashkent = CITIES.find((city) => city.id === "tashkent");
 const samarkand = CITIES.find((city) => city.id === "samarkand");
@@ -181,6 +181,64 @@ describe("treasure hunt without location permission", () => {
     await page.waitForFunction(() => [...document.querySelectorAll("#toasts .toast")].some((n) => /GPS/.test(n.textContent)), null, { timeout: 10000 });
     await page.waitForSelector(`[data-hunt=${hunt.id}]`);
     assert.equal(await page.locator(".hunt-panel").count(), 0);
+  });
+
+  test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });
+});
+
+describe("meet a local: only the server knows the secret word", () => {
+  const chorsu = tashkent.places.find((p) => p.quests.some((q) => q.type === "meet"));
+  const meet = chorsu.quests.find((q) => q.type === "meet");
+  let server, context, page, errors;
+  const submit = async (word) => {
+    await page.locator(`#q-${meet.id} input`).fill(word);
+    await page.locator(`#q-${meet.id} input`).press("Enter");
+  };
+  const toastSeen = (pattern) => page.waitForFunction((source) => [...document.querySelectorAll("#toasts .toast")].some((n) => new RegExp(source, "i").test(n.textContent)), pattern.source, { timeout: 8000 });
+  const meetDone = () => page.evaluate((id) => Boolean(JSON.parse(localStorage.getItem("uzq3-state")).quests[id]), meet.id);
+  before(async () => {
+    server = await start();
+    context = await newContext(browser);
+    ({ page, errors } = await openPage(context));
+    await onboard(page, server.base, { cityId: tashkent.id });
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 10000 });
+    await page.goto(`${server.base}/app/#/place/${chorsu.id}`);
+    await page.locator("[data-start]").click();
+  });
+  after(async () => { await context?.close(); await server?.stop(); });
+
+  test("the app does not know the word", async () => {
+    const shipped = await page.evaluate(async () => (await import("/shared/content.mjs")).CITIES.flatMap((c) => c.places.flatMap((p) => p.quests)).filter((q) => q.type === "meet"));
+    assert.ok(shipped.length > 0);
+    assert.ok(shipped.every((q) => !("code" in q)));
+  });
+
+  test("online, a wrong word is refused on the spot and nothing is recorded", async () => {
+    await submit("definitely-not-it");
+    await toastSeen(/not the secret word/);
+    assert.equal(await meetDone(), false);
+    assert.equal(await outboxSize(page), 0, "only the start event, already synced");
+  });
+
+  test("offline, a wrong word counts for now and is removed once the server sees it", async () => {
+    await context.setOffline(true);
+    await submit("offline-guess");
+    await toastSeen(/checked when you're back online/);
+    assert.equal(await meetDone(), true);
+    await context.setOffline(false);
+    await toastSeen(/could not verify/);
+    await waitSynced(page);
+    await page.waitForFunction((id) => !JSON.parse(localStorage.getItem("uzq3-state")).quests[id], meet.id);
+  });
+
+  test("the right word from the local completes the quest", async () => {
+    await page.goto(`${server.base}/app/#/place/${chorsu.id}`);
+    await submit(DEV_CODES[meet.id]);
+    await page.waitForFunction((id) => JSON.parse(localStorage.getItem("uzq3-state")).quests[id], meet.id);
+    await waitSynced(page);
+    const deviceId = await page.evaluate(() => JSON.parse(localStorage.getItem("uzq2-device")));
+    assert.ok((await readStore(server.dataFile)).devices[deviceId].state.quests[meet.id]);
   });
 
   test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });
