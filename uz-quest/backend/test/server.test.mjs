@@ -269,3 +269,27 @@ test("a code held by two travellers is refused instead of guessed", async () => 
     assert.equal((await post(server.base, "/api/v1/admin/redeem", { voucher: "UZQ-TWO002" }, admin)).status, 200);
   } finally { await server.stop(); await rm(dir, { recursive: true, force: true }); }
 });
+
+test("static files are compressed when accepted and revalidated with ETag", async () => {
+  const server = await start();
+  try {
+    const url = `${server.base}/shared/content.mjs`;
+    const plain = await fetch(url, { headers: { "Accept-Encoding": "identity" } });
+    const raw = Buffer.from(await plain.arrayBuffer());
+    assert.equal(plain.headers.get("content-encoding"), null);
+    for (const encoding of ["br", "gzip"]) {
+      // Node's fetch decodes the body itself, so compare what it decodes with the plain file.
+      const packed = await fetch(url, { headers: { "Accept-Encoding": encoding } });
+      assert.equal(packed.headers.get("content-encoding"), encoding);
+      assert.equal(packed.headers.get("vary"), "Accept-Encoding");
+      assert.ok(Buffer.from(await packed.arrayBuffer()).equals(raw), `${encoding} decodes to the same bytes`);
+    }
+    const etag = plain.headers.get("etag");
+    assert.match(etag, /^W\/"/);
+    const again = await fetch(url, { headers: { "If-None-Match": etag } });
+    assert.equal(again.status, 304);
+    assert.equal((await again.arrayBuffer()).byteLength, 0);
+    // Tiny files are not worth compressing.
+    assert.equal((await fetch(`${server.base}/assets/app-icon.svg`, { headers: { "Accept-Encoding": "gzip" } })).headers.get("content-encoding"), null);
+  } finally { await server.stop(); }
+});

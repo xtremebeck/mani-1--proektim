@@ -16,6 +16,33 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="app.css" />
+    <!-- Every module of the app, so the browser fetches them in parallel instead of discovering
+         them one import level at a time. Keep in sync with SHELL in ../sw.js (a test checks both). -->
+    <link rel="modulepreload" href="app.mjs" />
+    <link rel="modulepreload" href="i18n.mjs" />
+    <link rel="modulepreload" href="local-guide.mjs" />
+    <link rel="modulepreload" href="core/feedback.mjs" />
+    <link rel="modulepreload" href="core/location.mjs" />
+    <link rel="modulepreload" href="core/router.mjs" />
+    <link rel="modulepreload" href="core/session.mjs" />
+    <link rel="modulepreload" href="core/storage.mjs" />
+    <link rel="modulepreload" href="core/sync.mjs" />
+    <link rel="modulepreload" href="core/ui.mjs" />
+    <link rel="modulepreload" href="components/cards.mjs" />
+    <link rel="modulepreload" href="screens/city.mjs" />
+    <link rel="modulepreload" href="screens/done.mjs" />
+    <link rel="modulepreload" href="screens/explore.mjs" />
+    <link rel="modulepreload" href="screens/guide.mjs" />
+    <link rel="modulepreload" href="screens/home.mjs" />
+    <link rel="modulepreload" href="screens/hunt.mjs" />
+    <link rel="modulepreload" href="screens/passport.mjs" />
+    <link rel="modulepreload" href="screens/photos.mjs" />
+    <link rel="modulepreload" href="screens/place.mjs" />
+    <link rel="modulepreload" href="screens/profile.mjs" />
+    <link rel="modulepreload" href="screens/rewards.mjs" />
+    <link rel="modulepreload" href="screens/welcome.mjs" />
+    <link rel="modulepreload" href="../shared/content.mjs" />
+    <link rel="modulepreload" href="../shared/engine.mjs" />
     <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   </head>
   <body>
