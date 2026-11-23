@@ -9,7 +9,8 @@ const guessLang = () => { const nav = (navigator.language || "en").toLowerCase()
 
 export const session = {
   profile: null, state: null, log: null, deviceId: null,
-  server: { online: false, guide: false, testEvents: true, telegram: null },
+  // checked: the first /health check finished. lastTestEvents: the test policy the server gave last time.
+  server: { online: false, guide: false, testEvents: true, telegram: null, checked: false, lastTestEvents: null },
   auth: null, // { token, name, username } once logged in with Telegram
   login: null, // { token, url, expiresAt } while a Telegram login waits for confirmation
   chat: [],
@@ -27,9 +28,16 @@ if (!session.log && !session.state.xp && !Object.keys(session.state.started).len
 session.deviceId = store.get(KEYS.device, null);
 if (!session.deviceId) { session.deviceId = uuid(); store.set(KEYS.device, session.deviceId); }
 session.auth = store.get(KEYS.auth, null);
+session.server.lastTestEvents = store.get(KEYS.testPolicy, null);
 
-// Test shortcuts follow the server's policy when it is reachable; the static build has no server.
-export const testAllowed = () => !session.server.online || session.server.testEvents;
+// Test shortcuts follow the server's policy. Offline, or before the server answers, the policy it
+// gave last time applies; on a first visit they stay hidden until it answers. Only when there is no
+// server at all (the static demo) are they always offered.
+export const testAllowed = () => {
+  if (session.server.online) return session.server.testEvents;
+  if (session.server.lastTestEvents != null) return session.server.lastTestEvents;
+  return session.server.checked;
+};
 export const testMode = () => session.profile.testMode && testAllowed();
 export const city = () => findCity(session.profile.cityId) ?? CITIES[0];
 export const saveProfile = () => store.set(KEYS.profile, session.profile);

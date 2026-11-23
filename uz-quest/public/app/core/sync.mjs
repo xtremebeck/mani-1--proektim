@@ -119,7 +119,9 @@ export async function checkServer() {
     session.server.guide = Boolean(data?.guide);
     session.server.testEvents = data?.testEvents !== false;
     session.server.telegram = data?.telegram ?? null;
+    if (session.server.online) { session.server.lastTestEvents = session.server.testEvents; store.set(KEYS.testPolicy, session.server.testEvents); }
   } catch { session.server.online = false; session.server.guide = false; session.server.telegram = null; }
+  session.server.checked = true;
   if (shown() !== before && session.profile.done) render();
   flush();
 }
