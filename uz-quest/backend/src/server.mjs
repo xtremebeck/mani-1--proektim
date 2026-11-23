@@ -4,7 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { brotliCompressSync, constants as zlib, gzipSync } from "node:zlib";
+import { createAccounts } from "./accounts.mjs";
 import { SqliteStore } from "./store.mjs";
+import { TelegramBot } from "./telegram.mjs";
 import { askGuide, guideAvailable } from "./guide.mjs";
 import { CITIES, OFFERS } from "../../public/shared/content.mjs";
 import { applyEvent, cityDoneCount, emptyState, findCity, findQuest, levelInfo, normalizeAnswer } from "../../public/shared/engine.mjs";
@@ -69,6 +71,15 @@ const { codes: meetCodes, file: meetCodesSource } = await loadMeetCodes();
 // Wrong secret words allowed per address per minute, across the check endpoint and sync, so the
 // words cannot be guessed from a dictionary.
 const MEET_GUESSES_PER_MINUTE = 10;
+
+// "Log in with Telegram" runs when TELEGRAM_BOT_TOKEN is set (a bot made with @BotFather).
+// The server polls Telegram for the bot's messages, so it needs no public URL.
+let accounts;
+const bot = process.env.TELEGRAM_BOT_TOKEN
+  ? new TelegramBot({ token: process.env.TELEGRAM_BOT_TOKEN, api: process.env.TELEGRAM_API_URL, onUpdate: (update) => accounts.handleUpdate(update) })
+  : null;
+accounts = createAccounts({ store, bot, loginTtlMs: Number(process.env.TELEGRAM_LOGIN_TTL_MS) || 10 * 60 * 1000, stateVersion: STATE_VERSION });
+bot?.start();
 
 class HttpError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -137,17 +148,26 @@ function cleanEvent(raw) {
 
 // limits.canCreateDevice(): may this address register another device?
 // limits.meetBlocked() / limits.meetWrong(): the wrong-secret-word budget of this address.
-async function sync(input, limits) {
+// session: { accountId, deviceId } from the request's bearer token, or null.
+async function sync(input, limits, session) {
   if (!validId(input.deviceId)) return { status: 400, code: "INVALID_DEVICE", message: "deviceId is required." };
   const events = Array.isArray(input.events) ? input.events.slice(0, MAX_EVENTS_PER_SYNC) : [];
   return store.transaction(() => {
     const now = Date.now();
     let device = store.device(input.deviceId);
     if (!device && !limits.canCreateDevice()) return { status: 429, code: "RATE_LIMITED", message: "Too many new devices from this address." };
-    if (!device || device.state?.v !== STATE_VERSION) {
+    if (!device || (!device.accountId && device.state?.v !== STATE_VERSION)) {
       if (device) store.clearDevice(device.id);
       device = { id: input.deviceId, createdAt: now, state: emptyState(), redeemed: {} };
     }
+    // A device linked to an account syncs into the account, and only with that account's session.
+    let account = null;
+    if (device.accountId) {
+      if (session?.accountId !== device.accountId || session?.deviceId !== device.id) return { status: 401, code: "SESSION_REQUIRED", message: "Log in again to sync this device." };
+      account = store.account(device.accountId);
+      if (account.state?.v !== STATE_VERSION) account.state = emptyState();
+    }
+    const owner = account ?? device;
     device.lastSeenAt = now;
     device.lang = validLang(input.lang);
     const known = store.eventIds(device.id);
@@ -161,22 +181,30 @@ async function sync(input, limits) {
       // TRY_LATER events and sends them again.
       const isMeet = event.type === "quest" && !event.test && findQuest(event.questId)?.quest.type === "meet";
       if (isMeet && limits.meetBlocked()) { rejected.push({ id: raw.id, error: "TRY_LATER" }); continue; }
-      const result = applyEvent(device.state, event, { allowTest, now, meetCodes });
+      const result = applyEvent(owner.state, event, { allowTest, now, meetCodes });
       if (result.error === "WRONG_CODE") limits.meetWrong();
       if (!result.ok) { rejected.push({ id: raw.id, error: result.error }); continue; }
-      device.state = result.state;
+      owner.state = result.state;
       fresh.push(event);
       known.add(raw.id);
       accepted.push(raw.id);
     }
     store.putDevice(device);
+    if (account) store.putAccount(account);
     for (const event of fresh) store.addEvent(device.id, event, now);
-    return { status: 200, body: { accepted, rejected, state: device.state } };
+    return { status: 200, body: { accepted, rejected, state: owner.state, ...(account && { account: { name: account.name, username: account.username } }) } };
   });
 }
 
 async function overview() {
-  const devices = store.devices().filter((d) => d.state?.v === STATE_VERSION).map((d) => [d.id, d]);
+  // A traveller is a Telegram account, or a device that is not logged in. Accounts are listed
+  // without their Telegram name: partners see this dashboard.
+  const allDevices = store.devices();
+  const linked = store.accounts().map((a) => {
+    const own = allDevices.filter((d) => d.accountId === a.id).sort((x, y) => (y.lastSeenAt ?? 0) - (x.lastSeenAt ?? 0));
+    return [`acct-${a.id}`, { ...a, lang: own[0]?.lang ?? "en", lastSeenAt: own[0]?.lastSeenAt ?? a.createdAt }];
+  });
+  const devices = [...linked, ...allDevices.filter((d) => !d.accountId).map((d) => [d.id.slice(0, 8), d])].filter(([, d]) => d.state?.v === STATE_VERSION);
   const cities = CITIES.map((city) => {
     const started = devices.filter(([, d]) => city.places.some((place) => d.state.started[place.id])).length;
     const completed = devices.filter(([, d]) => cityDoneCount(d.state, city) === city.places.length).length;
@@ -203,13 +231,14 @@ async function overview() {
   return {
     metrics: {
       travellers: devices.length,
+      accounts: linked.length,
       adventures: devices.reduce((sum, [, d]) => sum + Object.keys(d.state.places).length, 0),
       quests: devices.reduce((sum, [, d]) => sum + Object.keys(d.state.quests).length, 0),
       averageXp: devices.length ? Math.round(totalXp / devices.length) : 0
     },
     cities, languages, vouchers, offers,
     recent: devices.sort(([, a], [, b]) => b.lastSeenAt - a.lastSeenAt).slice(0, 15).map(([id, d]) => ({
-      id: id.slice(0, 8), lang: d.lang, xp: d.state.xp, level: levelInfo(d.state.xp).level,
+      id, lang: d.lang, xp: d.state.xp, level: levelInfo(d.state.xp).level,
       adventures: Object.keys(d.state.places).length, lastSeenAt: d.lastSeenAt
     }))
   };
@@ -220,22 +249,24 @@ async function redeem(voucher) {
   if (!code) return { status: 400, code: "INVALID_VOUCHER", message: "Enter a voucher code." };
   return store.transaction(() => {
     // Codes are short hashes, so two travellers could in theory share one. Never guess which.
-    const owners = [...new Set(store.owners(code).map((row) => row.deviceId))].map((id) => store.device(id)).filter((device) => device.state?.v === STATE_VERSION);
+    const load = (owner) => (owner.startsWith("a:") ? { kind: "account", ...store.account(Number(owner.slice(2))) } : { kind: "device", ...store.device(owner.slice(2)) });
+    const owners = [...new Set(store.owners(code).map((row) => row.owner))].map(load).filter((owner) => owner.state?.v === STATE_VERSION);
     if (owners.length > 1) return { status: 409, code: "AMBIGUOUS_VOUCHER", message: "This code belongs to more than one traveller. Check the code shown in the traveller's app before handing over the reward." };
-    for (const device of owners) {
+    for (const owner of owners) {
       // City vouchers are keyed by city id, partner coupons by "coupon:<offer id>".
       const codes = [
-        ...Object.entries(device.state.rewards ?? {}).map(([cityId, reward]) => ({ key: cityId, code: reward.voucher, label: findCity(cityId)?.name.en ?? cityId })),
-        ...Object.entries(device.state.coupons ?? {}).map(([offerId, coupon]) => ({ key: `coupon:${offerId}`, code: coupon.code, label: OFFERS.find((o) => o.id === offerId)?.deal.en ?? offerId, expiresAt: coupon.expiresAt }))
+        ...Object.entries(owner.state.rewards ?? {}).map(([cityId, reward]) => ({ key: cityId, code: reward.voucher, label: findCity(cityId)?.name.en ?? cityId })),
+        ...Object.entries(owner.state.coupons ?? {}).map(([offerId, coupon]) => ({ key: `coupon:${offerId}`, code: coupon.code, label: OFFERS.find((o) => o.id === offerId)?.deal.en ?? offerId, expiresAt: coupon.expiresAt }))
       ];
       const match = codes.find((item) => item.code === code);
       if (!match) continue;
-      device.redeemed ??= {};
-      if (device.redeemed[match.key]) return { status: 409, code: "ALREADY_REDEEMED", message: `Already redeemed on ${new Date(device.redeemed[match.key]).toISOString()}.` };
+      owner.redeemed ??= {};
+      if (owner.redeemed[match.key]) return { status: 409, code: "ALREADY_REDEEMED", message: `Already redeemed on ${new Date(owner.redeemed[match.key]).toISOString()}.` };
       if (match.expiresAt && match.expiresAt < Date.now()) return { status: 410, code: "EXPIRED", message: "This coupon has expired." };
-      device.redeemed[match.key] = Date.now();
-      store.putDevice(device);
-      return { status: 200, body: { voucher: code, label: match.label, redeemedAt: device.redeemed[match.key] } };
+      owner.redeemed[match.key] = Date.now();
+      const { kind, ...row } = owner;
+      if (kind === "account") store.putAccount(row); else store.putDevice(row);
+      return { status: 200, body: { voucher: code, label: match.label, redeemedAt: owner.redeemed[match.key] } };
     }
     return { status: 404, code: "VOUCHER_NOT_FOUND", message: "Voucher not found. Ask the traveller to open the app online so it can sync." };
   });
@@ -284,14 +315,27 @@ const server = createServer(async (req, res) => {
   try {
     const pathname = new URL(req.url, "http://localhost").pathname;
     const route = `${req.method} ${pathname}`;
-    if (route === "GET /api/v1/health") return send(res, 200, { status: "ok", service: "uzquest-api", guide: await guideAvailable(), testEvents: allowTest }, id);
+    if (route === "GET /api/v1/health") return send(res, 200, { status: "ok", service: "uzquest-api", guide: await guideAvailable(), testEvents: allowTest, telegram: accounts.botUsername() }, id);
+    if (route === "POST /api/v1/auth/telegram/start") {
+      if (rateLimit(req, "login", 10)) return fail(res, 429, "RATE_LIMITED", "Too many login attempts.", id);
+      const input = await readBody(req);
+      if (!validId(input.deviceId)) return fail(res, 400, "INVALID_DEVICE", "deviceId is required.", id);
+      const result = accounts.startLogin(input.deviceId);
+      return result.status === 200 ? send(res, 200, result.body, id) : fail(res, result.status, result.code, result.message, id);
+    }
+    if (route === "POST /api/v1/auth/telegram/status") {
+      if (rateLimit(req, "login-status", 120)) return fail(res, 429, "RATE_LIMITED", "Too many requests.", id);
+      const result = accounts.loginStatus((await readBody(req)).token);
+      return result.status === 200 ? send(res, 200, result.body, id) : fail(res, result.status, result.code, result.message, id);
+    }
+    if (route === "POST /api/v1/auth/logout") { accounts.logout(req); return send(res, 200, { ok: true }, id); }
     if (route === "POST /api/v1/sync") {
       if (rateLimit(req, "sync", 60)) return fail(res, 429, "RATE_LIMITED", "Too many requests.", id);
       const result = await sync(await readBody(req), {
         canCreateDevice: () => !rateLimit(req, "new-device", 10),
         meetBlocked: () => rateLimit(req, "meet-guess", MEET_GUESSES_PER_MINUTE, { count: false }),
         meetWrong: () => rateLimit(req, "meet-guess", MEET_GUESSES_PER_MINUTE)
-      });
+      }, accounts.sessionOf(req));
       return result.status === 200 ? send(res, 200, result.body, id) : fail(res, result.status, result.code, result.message, id);
     }
     // Lets the app say "wrong word, ask again" on the spot instead of after the next sync.
@@ -337,4 +381,4 @@ const server = createServer(async (req, res) => {
 
 // Paths inside the project are shown relative to it, others in full.
 const shown = (file) => (path.relative(appRoot, file).startsWith("..") ? file : path.relative(appRoot, file));
-server.listen(port, host, () => console.log(`UzQuest: http://${host}:${port}  (admin: /admin, test events: ${allowTest ? "on" : "off"}, secret words: ${shown(meetCodesSource)}, data: ${shown(databaseFile)})`));
+server.listen(port, host, () => console.log(`UzQuest: http://${host}:${port}  (admin: /admin, test events: ${allowTest ? "on" : "off"}, telegram login: ${bot ? "on" : "off"}, secret words: ${shown(meetCodesSource)}, data: ${shown(databaseFile)})`));
