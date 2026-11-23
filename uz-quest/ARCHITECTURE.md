@@ -27,7 +27,7 @@ flowchart TB
   subgraph Server["Node server (backend/src)"]
     HTTP["server.mjs<br/>API + static files"]
     Engine2["shared/engine.mjs<br/>same rules, re-checked"]
-    Store[("store.mjs<br/>data/store.json")]
+    Store[("store.mjs<br/>SQLite data/uzquest.db")]
     Guide["guide.mjs<br/>Claude"]
     HTTP --> Engine2
     HTTP --> Store
@@ -55,7 +55,7 @@ flowchart TB
 | `public/index.html`, `landing.*` | Project website with an embedded live demo | browser |
 | `public/admin.html`, `admin.mjs` | Partner dashboard: metrics, funnels, voucher redemption | browser |
 | `backend/src/server.mjs` | HTTP server: API routes, static files, rate limits, security headers | server |
-| `backend/src/store.mjs` | JSON file store with serialized, atomic writes | server |
+| `backend/src/store.mjs` | SQLite store (Node's built-in `node:sqlite`): devices, events, voucher index, one-time import of the old JSON file | server |
 | `backend/src/guide.mjs` | Hamroh with Claude | server |
 | `scripts/build.mjs` | Copies `public/` to `dist/` (without admin) for static hosting | build |
 
@@ -135,22 +135,19 @@ The app detects the server through `GET /api/v1/health` and degrades on its own 
 
 Everything else is served as a static file from `public/`, with protection against path traversal.
 
-### Data model (`data/store.json`)
+### Data model (`data/uzquest.db`, SQLite)
 
-```js
-{
-  devices: {
-    [deviceId]: {
-      createdAt, lastSeenAt, lang,
-      events: [ /* accepted events, known fields only, with receivedAt */ ],
-      state:  { v: 3, xp, started, quests, places, dailies, detox, rewards, coupons },
-      redeemed: { [cityId | "coupon:<offerId>"]: timestamp }
-    }
-  }
-}
-```
+| Table | Row | Columns |
+|---|---|---|
+| `devices` | One phone | `id`, `created_at`, `last_seen_at`, `lang`, `state` (JSON: `{ v: 3, xp, started, quests, places, dailies, detox, rewards, coupons }`), `redeemed` (JSON: `{ [cityId \| "coupon:<offerId>"]: timestamp }`) |
+| `events` | One accepted event | `device_id`, `id`, `received_at`, `data` (JSON, known fields only) |
+| `codes` | One voucher or coupon code a device holds | `device_id`, `key` (`cityId` or `coupon:<offerId>`), `code` (indexed) |
 
-`store.mutate(fn)` queues writes one after another. Each write goes to a temporary file that is then renamed over the old one, so a crash cannot leave a half-written file. A device whose state has an older `v` is reset to an empty state on its next sync.
+The game state stays a JSON column because the engine owns its shape; the server never queries inside it. `codes` is rebuilt from the state whenever a device is saved, so redemption looks a code up instead of scanning every device.
+
+The driver is synchronous, and each sync or redemption runs inside `store.transaction(...)`, so it is atomic and requests cannot interleave. A sync only reads and writes its own device, unlike the old JSON file that was rewritten whole: with 5,000 devices a sync went from about 130 ms to about 1 ms. The database runs in WAL mode. A device whose state has an older `v` loses its events and codes and starts over on its next sync.
+
+`data/store.json`, the format before SQLite, is imported once into an empty database and then renamed to `store.json.imported`.
 
 ## Trust and security
 
@@ -182,7 +179,7 @@ Run the first two with `npm test` and the browser tests with `npm run test:e2e`.
 
 | Limit | Impact | Direction |
 |---|---|---|
-| JSON file store | Every sync rewrites the whole file; one process only | Move to PostgreSQL or SQLite; the `JsonStore` interface (`snapshot`, `mutate`) is the seam |
+| SQLite in one process | One server process; queries block the event loop briefly | Fine for a pilot. For several servers, move to PostgreSQL behind the same `SqliteStore` methods |
 | Quiz, riddle and timeline answers ship to the client | They can be read instead of found on site | Acceptable: they are trivia, not proof of a visit |
 | Treasure-hunt GPS and photo quests are trusted | Coordinates can be spoofed and `hasPhoto` is just a flag | The server cannot prove either. Rewards that matter should depend on meet-a-local quests, which a partner confirms on site |
 | Identity is a random `deviceId` | Progress is lost with the phone or browser data | Add accounts (phone number or Telegram) and link devices |

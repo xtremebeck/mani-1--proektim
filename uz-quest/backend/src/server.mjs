@@ -3,14 +3,16 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
-import { JsonStore } from "./store.mjs";
+import { SqliteStore } from "./store.mjs";
 import { askGuide, guideAvailable } from "./guide.mjs";
 import { CITIES, OFFERS } from "../../public/shared/content.mjs";
 import { applyEvent, cityDoneCount, emptyState, findCity, findQuest, levelInfo, normalizeAnswer } from "../../public/shared/engine.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const publicRoot = path.join(appRoot, "public");
-const store = new JsonStore(process.env.DATA_FILE ?? path.join(appRoot, "data", "store.json"));
+const databaseFile = process.env.DATABASE_FILE ?? path.join(appRoot, "data", "uzquest.db");
+// The JSON file used before SQLite; imported once into an empty database, then renamed.
+const legacyFile = process.env.DATA_FILE ?? path.join(appRoot, "data", "store.json");
 const port = Number.parseInt(process.env.PORT ?? "4174", 10);
 const host = process.env.HOST ?? "127.0.0.1";
 const production = process.env.NODE_ENV === "production";
@@ -32,7 +34,15 @@ const MIME = {
   ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon"
 };
 
-await store.initialize();
+let store;
+try {
+  store = new SqliteStore(databaseFile);
+  const imported = store.importJson(legacyFile);
+  if (imported) console.log(`Imported ${imported} devices from ${legacyFile} (kept as ${path.basename(legacyFile)}.imported).`);
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
 // Secret words for "meet a local" quests. They never ship to the browser: the partner's staff
 // tells them to the traveller on site, and only this server can check them. Production reads them
@@ -129,15 +139,18 @@ function cleanEvent(raw) {
 async function sync(input, limits) {
   if (!validId(input.deviceId)) return { status: 400, code: "INVALID_DEVICE", message: "deviceId is required." };
   const events = Array.isArray(input.events) ? input.events.slice(0, MAX_EVENTS_PER_SYNC) : [];
-  return store.mutate((data) => {
+  return store.transaction(() => {
     const now = Date.now();
-    let device = data.devices[input.deviceId];
+    let device = store.device(input.deviceId);
     if (!device && !limits.canCreateDevice()) return { status: 429, code: "RATE_LIMITED", message: "Too many new devices from this address." };
-    if (!device || device.state?.v !== STATE_VERSION) device = data.devices[input.deviceId] = { createdAt: now, lang: "en", events: [], state: emptyState() };
+    if (!device || device.state?.v !== STATE_VERSION) {
+      if (device) store.clearDevice(device.id);
+      device = { id: input.deviceId, createdAt: now, state: emptyState(), redeemed: {} };
+    }
     device.lastSeenAt = now;
     device.lang = validLang(input.lang);
-    const known = new Set(device.events.map((event) => event.id));
-    const accepted = [], rejected = [];
+    const known = store.eventIds(device.id);
+    const accepted = [], rejected = [], fresh = [];
     for (const raw of events) {
       if (!validId(raw?.id)) { rejected.push({ id: raw?.id ?? null, error: "BAD_EVENT" }); continue; }
       if (known.has(raw.id)) { accepted.push(raw.id); continue; }
@@ -151,17 +164,18 @@ async function sync(input, limits) {
       if (result.error === "WRONG_CODE") limits.meetWrong();
       if (!result.ok) { rejected.push({ id: raw.id, error: result.error }); continue; }
       device.state = result.state;
-      device.events.push({ ...event, receivedAt: now });
+      fresh.push(event);
       known.add(raw.id);
       accepted.push(raw.id);
     }
+    store.putDevice(device);
+    for (const event of fresh) store.addEvent(device.id, event, now);
     return { status: 200, body: { accepted, rejected, state: device.state } };
   });
 }
 
 async function overview() {
-  const data = await store.snapshot();
-  const devices = Object.entries(data.devices).filter(([, d]) => d.state?.v === STATE_VERSION);
+  const devices = store.devices().filter((d) => d.state?.v === STATE_VERSION).map((d) => [d.id, d]);
   const cities = CITIES.map((city) => {
     const started = devices.filter(([, d]) => city.places.some((place) => d.state.started[place.id])).length;
     const completed = devices.filter(([, d]) => cityDoneCount(d.state, city) === city.places.length).length;
@@ -203,11 +217,9 @@ async function overview() {
 async function redeem(voucher) {
   const code = String(voucher ?? "").trim().toUpperCase();
   if (!code) return { status: 400, code: "INVALID_VOUCHER", message: "Enter a voucher code." };
-  return store.mutate((data) => {
+  return store.transaction(() => {
     // Codes are short hashes, so two travellers could in theory share one. Never guess which.
-    const owners = Object.values(data.devices).filter((device) => device.state?.v === STATE_VERSION && (
-      Object.values(device.state.rewards ?? {}).some((reward) => reward.voucher === code) ||
-      Object.values(device.state.coupons ?? {}).some((coupon) => coupon.code === code)));
+    const owners = [...new Set(store.owners(code).map((row) => row.deviceId))].map((id) => store.device(id)).filter((device) => device.state?.v === STATE_VERSION);
     if (owners.length > 1) return { status: 409, code: "AMBIGUOUS_VOUCHER", message: "This code belongs to more than one traveller. Check the code shown in the traveller's app before handing over the reward." };
     for (const device of owners) {
       // City vouchers are keyed by city id, partner coupons by "coupon:<offer id>".
@@ -221,6 +233,7 @@ async function redeem(voucher) {
       if (device.redeemed[match.key]) return { status: 409, code: "ALREADY_REDEEMED", message: `Already redeemed on ${new Date(device.redeemed[match.key]).toISOString()}.` };
       if (match.expiresAt && match.expiresAt < Date.now()) return { status: 410, code: "EXPIRED", message: "This coupon has expired." };
       device.redeemed[match.key] = Date.now();
+      store.putDevice(device);
       return { status: 200, body: { voucher: code, label: match.label, redeemedAt: device.redeemed[match.key] } };
     }
     return { status: 404, code: "VOUCHER_NOT_FOUND", message: "Voucher not found. Ask the traveller to open the app online so it can sync." };
@@ -299,4 +312,6 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, host, () => console.log(`UzQuest: http://${host}:${port}  (admin: /admin, test events: ${allowTest ? "on" : "off"}, secret words: ${path.relative(appRoot, meetCodesSource)})`));
+// Paths inside the project are shown relative to it, others in full.
+const shown = (file) => (path.relative(appRoot, file).startsWith("..") ? file : path.relative(appRoot, file));
+server.listen(port, host, () => console.log(`UzQuest: http://${host}:${port}  (admin: /admin, test events: ${allowTest ? "on" : "off"}, secret words: ${shown(meetCodesSource)}, data: ${shown(databaseFile)})`));

@@ -4,8 +4,8 @@
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { CITIES, OFFERS } from "../public/shared/content.mjs";
-import { DEV_CODES, start } from "../backend/test/support/server.mjs";
-import { launch, localState, newContext, onboard, openPage, outboxSize, playPlace, readStore, waitSynced } from "./support.mjs";
+import { DEV_CODES, readDevice, start } from "../backend/test/support/server.mjs";
+import { launch, localState, newContext, onboard, openPage, outboxSize, playPlace, waitSynced } from "./support.mjs";
 
 const tashkent = CITIES.find((city) => city.id === "tashkent");
 const samarkand = CITIES.find((city) => city.id === "samarkand");
@@ -94,7 +94,7 @@ describe("a traveller who finishes Tashkent", () => {
     assert.equal((await localState(page)).xp, before + 60);
     await waitSynced(page);
     const deviceId = await page.evaluate(() => JSON.parse(localStorage.getItem("uzq2-device")));
-    assert.equal(Object.keys((await readStore(server.dataFile)).devices[deviceId].state.detox).length, 1);
+    assert.equal(Object.keys(readDevice(server.dbFile, deviceId).state.detox).length, 1);
   });
 
   test("the language can be switched to Uzbek and Russian", async () => {
@@ -155,7 +155,7 @@ describe("treasure hunt with live GPS", () => {
     assert.equal(record.test, false);
     await waitSynced(page);
     const deviceId = await page.evaluate(() => JSON.parse(localStorage.getItem("uzq2-device")));
-    const event = (await readStore(server.dataFile)).devices[deviceId].events.find((e) => e.questId === hunt.id);
+    const event = readDevice(server.dbFile, deviceId).events.find((e) => e.questId === hunt.id);
     assert.equal(event.lat, hunt.lat);
   });
 
@@ -238,7 +238,7 @@ describe("meet a local: only the server knows the secret word", () => {
     await page.waitForFunction((id) => JSON.parse(localStorage.getItem("uzq3-state")).quests[id], meet.id);
     await waitSynced(page);
     const deviceId = await page.evaluate(() => JSON.parse(localStorage.getItem("uzq2-device")));
-    assert.ok((await readStore(server.dataFile)).devices[deviceId].state.quests[meet.id]);
+    assert.ok(readDevice(server.dbFile, deviceId).state.quests[meet.id]);
   });
 
   test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });

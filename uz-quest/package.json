@@ -10,7 +10,7 @@
     "build": "node scripts/build.mjs",
     "test:e2e": "node --test e2e/*.test.mjs"
   },
-  "engines": { "node": ">=20" },
+  "engines": { "node": ">=22.13" },
   "optionalDependencies": {
     "@anthropic-ai/sdk": "^1.12.0"
   },

@@ -86,11 +86,15 @@ Turn it off to experience the real thing. The server rejects simulated completio
 
 ## Run locally
 
+Needs Node.js 22.13 or newer, which ships the built-in SQLite driver the server uses.
+
 ```bash
 cd uz-quest
 npm start      # http://127.0.0.1:4174
 npm test       # game rules and server tests
 ```
+
+**Data.** Progress is stored in SQLite at `data/uzquest.db` (set `DATABASE_FILE` to move it). A `data/store.json` from before SQLite is imported on the first start and kept as `data/store.json.imported`. The server refuses to import it into a database that already has data, so nothing is merged by accident.
 
 **Browser tests.** `npm run test:e2e` plays the app in headless Chromium against a real server: onboarding, quests, photo upload, sync, the admin panel, production settings and offline use. First run `npm install` and `npx playwright install chromium`. To reuse a Chromium you already have, set `CHROMIUM_PATH` to its executable.
 
@@ -126,6 +130,6 @@ backend/src/                             ← zero-dependency Node server, sync A
 - **Infrastructure.**
   - Run with `NODE_ENV=production`, your own `ADMIN_KEY` and your own secret words file. The server will not start without either. Production mode also turns test events off.
   - Daily and detox XP is only accepted within 48 hours, and the API is rate-limited per IP. Behind a reverse proxy all clients share one IP, so move rate limiting to the proxy.
-  - Move from the JSON file store to PostgreSQL.
+  - Back up `data/uzquest.db` regularly, for example `sqlite3 data/uzquest.db ".backup backup.db"`. That command is safe while the server runs. A plain file copy is only safe while it is stopped, because SQLite also keeps `-wal` and `-shm` files next to the database.
   - Use a commercial map tile provider.
   - Bump `CACHE` in `sw.js` on every release.
