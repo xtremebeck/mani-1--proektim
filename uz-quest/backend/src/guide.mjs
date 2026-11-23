@@ -5,7 +5,7 @@
 import { INTERESTS } from "../../public/shared/content.mjs";
 import { findCity, findPlace } from "../../public/shared/engine.mjs";
 
-const MODEL = process.env.GUIDE_MODEL ?? "claude-opus-5";
+const MODEL = process.env.GUIDE_MODEL ?? "claude-opus-5-5";
 const LANGUAGE_NAMES = { uz: "Uzbek (Latin script)", en: "English", ru: "Russian" };
 
 let clientPromise = null;
@@ -50,7 +50,7 @@ export async function askGuide({ message, history, cityId, placeId, interests, l
 
   const response = await client.beta.messages.create({
     model: MODEL,
-    max_tokens: 2000,
+    max_tokens: 16000, // thinking shares this budget; replies themselves stay short
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     output_config: { effort: "low" },

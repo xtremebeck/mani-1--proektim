@@ -56,9 +56,10 @@ const TIPS = {
 const INTENTS = [
   ["next", /next|where|keyingi|qayer|qaerda|следующ|где|куда/i],
   ["story", /story|history|tarix|hikoya|истори|расскаж/i],
-  ["food", /food|eat|hungry|plov|palov|ovqat|taom|yeyish|non\b|еда|есть|поесть|плов|кушать|попробовать/i],
+  ["food", /food|\beat\b|hungry|plov|palov|ovqat|taom|yeyish|\bnon\b|еда|поесть|плов|кушать|попробовать/iu],
   ["transport", /transport|taxi|metro|train|get around|bus|taksi|poyezd|avtobus|borsam|такси|метро|поезд|добрат|автобус/i],
-  ["money", /money|cash|card|atm|pul|karta|naqd|so'm|деньг|карт|налич|банкомат|сум/i],
+  // Cyrillic needs lookarounds: \b only knows ASCII letters, so "сум" would also match "сумка".
+  ["money", /money|cash|\bcard|\batm\b|\bpul\b|karta|naqd|so'm|деньг|налич|банкомат|(?<!\p{L})(?:сум|картой|карточк\p{L}*)(?!\p{L})/iu],
   ["etiquette", /etiquette|dress|wear|mosque|custom|kiyim|odob|masjid|одежд|этикет|мечет|обыча/i],
   ["hello", /^(hi|hello|hey|salom|assalom|привет|здравств|салам)/i]
 ];
@@ -77,6 +78,7 @@ export function localGuideReply({ message, lang, city, next, last, distance }) {
     const stop = next ?? last;
     return stop ? `${pick(stop.name)}: ${pick(stop.story)}` : pick(TIPS.fallback);
   }
-  if (intent === "food" || intent === "transport") return pick(TIPS[intent][city.id]);
+  // A city without its own food/transport tips yet gets the general answer instead of a blank bubble.
+  if (intent === "food" || intent === "transport") return pick(TIPS[intent][city.id]) ?? pick(TIPS.fallback);
   return pick(TIPS[intent]);
 }

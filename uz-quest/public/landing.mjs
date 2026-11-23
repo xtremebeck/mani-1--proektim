@@ -193,6 +193,8 @@ function focusPhone(index) {
   layoutPhones();
 }
 function autoRotate() { clearInterval(heroTimer); heroTimer = setInterval(() => focusPhone(order[3]), 3800); }
+// No need to animate a tab nobody is looking at.
+document.addEventListener("visibilitychange", () => { if (document.hidden) clearInterval(heroTimer); else autoRotate(); });
 
 all(".hero-phones .phone").forEach((phone, i) => phone.addEventListener("click", () => { focusPhone(i); autoRotate(); }));
 all(".dots i").forEach((dot, i) => dot.addEventListener("click", () => { focusPhone(i); autoRotate(); }));

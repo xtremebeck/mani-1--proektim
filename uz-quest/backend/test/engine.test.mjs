@@ -132,3 +132,16 @@ test("daily quest, detox and levels", () => {
   assert.equal(levelInfo(0).level, 1);
   assert.equal(levelInfo(250).level, 2);
 });
+
+test("back-dated daily and detox claims are rejected when the server passes now", () => {
+  const now = Date.UTC(2026, 8, 19, 8);
+  const old = now - 3 * 86400000;
+  const daily = { type: "daily", cityId: "tashkent", dailyId: dailyFor(tashkent, dayKey(old)).id, at: old };
+  const detox = { type: "detox", startedAt: old - 3600000, at: old };
+  assert.equal(applyEvent(emptyState(), daily, { now }).error, "CLAIM_EXPIRED");
+  assert.equal(applyEvent(emptyState(), detox, { now }).error, "CLAIM_EXPIRED");
+  // The phone applies its own fresh events without `now`, and recent claims still count.
+  assert.equal(applyEvent(emptyState(), daily).ok, true);
+  const recent = now - 3600000;
+  assert.equal(applyEvent(emptyState(), { ...daily, dailyId: dailyFor(tashkent, dayKey(recent)).id, at: recent }, { now }).ok, true);
+});

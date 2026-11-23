@@ -12,7 +12,13 @@ export class JsonStore {
 
   async initialize() {
     await mkdir(path.dirname(this.#file), { recursive: true });
-    try { await readFile(this.#file, "utf8"); } catch { await this.#write({ devices: {} }); }
+    let raw;
+    try { raw = await readFile(this.#file, "utf8"); } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      return this.#write({ devices: {} });
+    }
+    // Fail at startup rather than answering every request with a 500.
+    try { JSON.parse(raw); } catch { throw Error(`Data file ${this.#file} is not valid JSON. Restore it from a backup or move it away to start fresh.`); }
   }
 
   snapshot() { return this.#read(); }

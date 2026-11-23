@@ -6,7 +6,7 @@ UzQuest is a story-driven quest travel app for Tashkent and Samarkand, inspired 
 |---|---|
 | `/` | **Project website**, modelled on subquester.app: features, how it works, cities, screenshots, a live playable demo, a partners section and an FAQ. In UZ, EN and RU. |
 | `/app/` | **The web app.** This is the version to test now and move to the mobile app later. |
-| `/admin` | Partner dashboard: metrics, a funnel per place, partner offers, and redemption of vouchers and coupons. Key: `uzquest-dev-admin` |
+| `/admin` | Partner dashboard: metrics, a funnel per place, partner offers, and redemption of vouchers and coupons. Local dev key: `uzquest-dev-admin` (only accepted on `127.0.0.1` outside production) |
 
 ## How the game works
 
@@ -72,23 +72,25 @@ Test mode is **on by default** (Profile → 🧪 Test mode) so you can play ever
 - "Skip photo" completes photo spots without taking a picture.
 - The secret word is shown under each meet-a-local quest.
 
-Turn it off to experience the real thing. For real rewards, start the server with `ALLOW_TEST_EVENTS=false` so it rejects simulated completions.
+Turn it off to experience the real thing. The server rejects simulated completions when `NODE_ENV=production` (or `ALLOW_TEST_EVENTS=false`); the app then hides the test buttons. Set `ALLOW_TEST_EVENTS=true` to force them on.
 
 ## Run locally
 
 ```bash
 cd uz-quest
 npm start      # http://127.0.0.1:4174
-npm test       # 12 tests of the game rules
+npm test       # game rules and server tests
 ```
 
-To test on your phone over the same Wi-Fi, run `HOST=0.0.0.0 npm start` and open `http://<your-PC-IP>:4174`. GPS and the camera need `https://`, so use the GitHub Pages link for real treasure hunts.
+To test on your phone over the same Wi-Fi, run `HOST=0.0.0.0 ADMIN_KEY=<your-key> npm start` (the server refuses to listen on the network with the dev key) and open `http://<your-PC-IP>:4174`. GPS and the camera need `https://`, so use the GitHub Pages link for real treasure hunts.
 
 **Claude AI guide (optional).** Run `npm install`, then `ANTHROPIC_API_KEY=... npm start`. Without a key, Hamroh uses its built-in offline answers.
 
 **Static hosting.** `npm run build` writes `dist/`. GitHub Pages publishes it automatically on every push to `main`.
 
 ## Project layout
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the parts fit together: the shared engine, event sourcing, sync and the trust model.
 
 ```
 public/
@@ -110,8 +112,8 @@ backend/src/                             ← zero-dependency Node server, sync A
 - **Check every place on site.** Coordinates are approximate, especially the treasure-hunt points. Check the quiz and riddle facts, and opening hours.
 - **Sign real partners.** Replace the demo offers, and agree secret words with the staff who play the "locals".
 - **Infrastructure.**
-  - Change `ADMIN_KEY`.
-  - Set `ALLOW_TEST_EVENTS=false`.
+  - Run with `NODE_ENV=production` and your own `ADMIN_KEY` (the server will not start without it). This also turns test events off.
+  - Daily and detox XP is only accepted within 48 hours, and the API is rate-limited per IP. Behind a reverse proxy all clients share one IP, so move rate limiting to the proxy.
   - Move from the JSON file store to PostgreSQL.
   - Use a commercial map tile provider.
   - Bump `CACHE` in `sw.js` on every release.

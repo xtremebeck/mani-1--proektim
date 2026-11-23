@@ -89,12 +89,18 @@ export function suggestions(state, city, { interests = [], position = null } = {
 
 const fail = (error) => ({ ok: false, error });
 
+// Daily and detox XP can be earned once per day, so a back-dated claim would mint
+// XP for days that never happened. The server only accepts them this fresh.
+export const CLAIM_WINDOW_MS = 48 * 3600 * 1000;
+
 // Applies one event. Returns { ok, state, gained, placeCompleted, cityCompleted, coupons } or { ok: false, error }.
 // allowTest: accept test-mode shortcuts (simulated GPS arrival, photo skipped). Turn off for real rewards.
-export function applyEvent(state, event, { allowTest = true } = {}) {
+// now: when given (the server), daily/detox claims older than CLAIM_WINDOW_MS are rejected.
+export function applyEvent(state, event, { allowTest = true, now = null } = {}) {
   const at = Number(event?.at);
   if (!Number.isFinite(at)) return fail("BAD_EVENT");
   if (event.test && !allowTest) return fail("TEST_DISABLED");
+  if (now != null && (event.type === "daily" || event.type === "detox") && now - at > CLAIM_WINDOW_MS) return fail("CLAIM_EXPIRED");
   let result;
   switch (event.type) {
     case "start": result = applyStart(state, event, at); break;
@@ -219,8 +225,8 @@ function shortCode(seed) {
   return hash.toString(36).toUpperCase().padStart(6, "0").slice(-6);
 }
 
-export function replay(events, options) {
-  let state = emptyState();
+export function replay(events, options, from = emptyState()) {
+  let state = from;
   for (const event of events) { const result = applyEvent(state, event, options); if (result.ok) state = result.state; }
   return state;
 }

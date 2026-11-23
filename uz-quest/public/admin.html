@@ -32,6 +32,9 @@
       .bar i { display: block; height: 100%; background: var(--teal); border-radius: inherit; }
       .city-meta { color: var(--muted); font-size: 13px; margin: -8px 0 12px; }
       table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      /* Wide tables scroll inside their panel instead of spilling off narrow screens. */
+      .table-wrap { overflow-x: auto; }
+      @media (max-width: 600px) { .table-wrap table { min-width: 520px; } }
       th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
       th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
       code { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; }
@@ -70,10 +73,10 @@
           </section>
         </div>
         <div class="grid" id="cities"></div>
-        <section class="panel"><h2>Partner offers</h2><p class="city-meta">Sample partners for the demo. Coupons unlock when travellers finish a place, a city or reach a level.</p><table><thead><tr><th>Partner</th><th>Deal</th><th>Issued</th><th>Redeemed</th></tr></thead><tbody id="offers"></tbody></table></section>
+        <section class="panel"><h2>Partner offers</h2><p class="city-meta">Sample partners for the demo. Coupons unlock when travellers finish a place, a city or reach a level.</p><div class="table-wrap"><table><thead><tr><th>Partner</th><th>Deal</th><th>Issued</th><th>Redeemed</th></tr></thead><tbody id="offers"></tbody></table></div></section>
         <div class="grid">
-          <section class="panel"><h2>Vouchers</h2><table><thead><tr><th>Code</th><th>For</th><th>Issued</th><th>Redeemed</th></tr></thead><tbody id="vouchers"></tbody></table></section>
-          <section class="panel"><h2>Recent travellers</h2><table><thead><tr><th>ID</th><th>Lang</th><th>Level</th><th>XP</th><th>Adventures</th><th>Last seen</th></tr></thead><tbody id="recent"></tbody></table></section>
+          <section class="panel"><h2>Vouchers</h2><div class="table-wrap"><table><thead><tr><th>Code</th><th>For</th><th>Issued</th><th>Redeemed</th></tr></thead><tbody id="vouchers"></tbody></table></div></section>
+          <section class="panel"><h2>Recent travellers</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Lang</th><th>Level</th><th>XP</th><th>Adventures</th><th>Last seen</th></tr></thead><tbody id="recent"></tbody></table></div></section>
         </div>
       </section>
     </main>

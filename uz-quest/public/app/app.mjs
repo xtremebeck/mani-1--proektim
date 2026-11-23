@@ -2,13 +2,13 @@ import { BADGES, CITIES, DETOX_MINUTES, GIFT_STAMPS, INTERESTS, LEVELS, OFFERS, 
 import {
   applyEvent, cityComplete, cityDoneCount, collectedCards, dailyFor, dayKey, distanceMeters, earnedBadges, earnedGiftStamps,
   emptyState, findCity, findPlace, findQuest, levelInfo, offerUnlocked, placeDone, placeProgress, placeXp, questRarity, questXp,
-  storyNext, suggestions
+  replay, storyNext, suggestions
 } from "../shared/engine.mjs";
 import { translate } from "./i18n.mjs";
 import { localGuideReply } from "./local-guide.mjs";
 
 // ---------- storage ----------
-const KEYS = { state: "uzq3-state", profile: "uzq2-profile", outbox: "uzq3-outbox", device: "uzq2-device", detox: "uzq2-detox" };
+const KEYS = { state: "uzq3-state", profile: "uzq2-profile", outbox: "uzq3-outbox", device: "uzq2-device", detox: "uzq2-detox", log: "uzq3-log" };
 const store = {
   get(key, fallback) { try { const raw = localStorage.getItem(key); return raw == null ? fallback : JSON.parse(raw); } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage full or blocked */ } },
@@ -50,10 +50,17 @@ let profile = store.get(KEYS.profile, null) ?? { name: "", avatar: AVATARS[0], l
 profile.testMode ??= true; // MVP default: lets people try GPS hunts and photo spots from home
 let state = store.get(KEYS.state, null);
 if (!state || state.v !== 3) state = emptyState();
+// Every accepted event, so progress the server rejects can be replayed away.
+// Older installs have progress but no log; they keep their state as is (log = null).
+let log = store.get(KEYS.log, null);
+if (!log && !state.xp && !Object.keys(state.started).length) { log = []; store.set(KEYS.log, log); }
 let deviceId = store.get(KEYS.device, null);
 if (!deviceId) { deviceId = uuid(); store.set(KEYS.device, deviceId); }
 
-const server = { online: false, guide: false };
+const server = { online: false, guide: false, testEvents: true };
+// Test shortcuts follow the server's policy when it is reachable; the static build has no server.
+const testAllowed = () => !server.online || server.testEvents;
+const testMode = () => profile.testMode && testAllowed();
 const chat = [];
 let position = null;
 let lastCompletion = null;
@@ -85,10 +92,12 @@ const errorText = (code) => (translate(profile.lang, `err_${code}`) !== `err_${c
 function dispatch(partial) {
   const event = { id: uuid(), at: Date.now(), ...partial };
   const before = state;
+  if (event.test && !testAllowed()) return { ok: false, error: "TEST_DISABLED" };
   const result = applyEvent(state, event);
   if (!result.ok) return result;
   state = result.state;
   store.set(KEYS.state, state);
+  if (log) { log.push(event); store.set(KEYS.log, log); }
   store.set(KEYS.outbox, [...store.get(KEYS.outbox, []), event]);
   const diff = (fn) => { const old = new Set(fn(before)); return fn(state).filter((id) => !old.has(id)); };
   const newBadges = diff(earnedBadges), newGifts = diff(earnedGiftStamps);
@@ -110,7 +119,15 @@ function dispatch(partial) {
   return result;
 }
 
-async function flush() {
+let flushing = null;
+// One sync at a time; a call made meanwhile runs once the current one finishes.
+function flush() {
+  const run = (flushing ?? Promise.resolve()).then(syncOutbox).finally(() => { if (flushing === run) flushing = null; });
+  flushing = run;
+  return run;
+}
+
+async function syncOutbox() {
   if (!server.online || !navigator.onLine) return;
   const outbox = store.get(KEYS.outbox, []);
   if (!outbox.length) return;
@@ -120,10 +137,21 @@ async function flush() {
     const data = await response.json();
     const settled = new Set([...data.accepted, ...data.rejected.map((item) => item.id)]);
     store.set(KEYS.outbox, store.get(KEYS.outbox, []).filter((event) => !settled.has(event.id)));
+    // A DUPLICATE means the server already has that progress; anything else never counted there.
+    const dropped = new Set(data.rejected.filter((item) => item.error !== "DUPLICATE").map((item) => item.id));
+    if (dropped.size && log) {
+      log = log.filter((event) => !dropped.has(event.id));
+      store.set(KEYS.log, log);
+      state = replay(log);
+      store.set(KEYS.state, state);
+      toast(t("syncRejected"), "error");
+      render();
+    }
   } catch { /* retry later */ }
 }
 
 async function checkServer() {
+  const wasAllowed = testAllowed();
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3500);
@@ -132,7 +160,9 @@ async function checkServer() {
     const data = response.ok ? await response.json() : null;
     server.online = data?.service === "uzquest-api";
     server.guide = Boolean(data?.guide);
+    server.testEvents = data?.testEvents !== false;
   } catch { server.online = false; server.guide = false; }
+  if (testAllowed() !== wasAllowed && profile.done) render();
   flush();
 }
 
@@ -185,7 +215,7 @@ function confetti() {
 // ---------- router ----------
 function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-  if (!profile.done) return { name: "welcome", step: Number(parts[0] === "welcome" ? parts[1] : 0) || 0 };
+  if (!profile.done) return { name: "welcome", step: Math.min(3, Math.max(0, Math.trunc(Number(parts[0] === "welcome" ? parts[1] : 0)) || 0)) };
   const [name = "home", id] = parts;
   return { name, id };
 }
@@ -295,7 +325,7 @@ function renderHome(screen) {
   screen.innerHTML = `
     <header class="topline">
       <a class="avatar" href="#/profile" aria-label="${t("openProfile")}">${profile.avatar}</a>
-      <div><h1>${t("hello", { name: esc(profile.name || L({ uz: "sayyoh", en: "explorer", ru: "путешественник" })) })}</h1><p>${t("helloSub", { city: esc(L(c.name)) })}</p></div>
+      <div><h1>${t("hello", { name: esc(profile.name || t("explorer").toLowerCase()) })}</h1><p>${t("helloSub", { city: esc(L(c.name)) })}</p></div>
       <button class="chip city-switch" data-switch>📍 ${esc(L(c.name))} ⇄</button>
     </header>
     <section class="card level-card">
@@ -442,7 +472,7 @@ function questCard(quest, unlocked) {
     actions = `<form class="answer-form" data-riddle="${quest.id}"><input name="a" autocomplete="off" placeholder="${t("answerPlaceholder")}" required /><button class="btn primary small">${t("check")}</button></form>`;
   } else if (quest.type === "meet") {
     actions = `<form class="answer-form" data-meet="${quest.id}"><input name="a" autocomplete="off" placeholder="${t("codePlaceholder")}" required /><button class="btn primary small">${t("confirm")}</button></form>
-      ${profile.testMode ? `<small class="test-hint">🧪 ${t("testHint", { code: esc(quest.code) })}</small>` : ""}`;
+      ${testMode() ? `<small class="test-hint">🧪 ${t("testHint", { code: esc(quest.code) })}</small>` : ""}`;
   } else if (quest.type === "timeline") {
     const picks = timelinePicks[quest.id] ?? [];
     actions = `<div class="timeline"><small>${t("timelineHint")}</small>${quest.items.map((item, i) => {
@@ -454,9 +484,9 @@ function questCard(quest, unlocked) {
     actions = active
       ? `<div class="hunt-panel ${hunt.heat ?? ""}"><strong id="hunt-status">${esc(hunt.message ?? t("huntSearching"))}</strong><div class="radar"><i></i></div></div>`
       : `<button class="btn primary small" data-hunt="${quest.id}">🧭 ${t("huntStart")}</button>`;
-    if (profile.testMode) actions += `<button class="link" data-simulate="${quest.id}">🧪 ${t("huntSimulate")}</button>`;
+    if (testMode()) actions += `<button class="link" data-simulate="${quest.id}">🧪 ${t("huntSimulate")}</button>`;
   } else if (quest.type === "photo") {
-    actions = `<button class="btn primary small" data-photo="${quest.id}">📷 ${t("takePhoto")}</button>${profile.testMode ? `<button class="link" data-skip="${quest.id}">🧪 ${t("skipPhoto")}</button>` : ""}`;
+    actions = `<button class="btn primary small" data-photo="${quest.id}">📷 ${t("takePhoto")}</button>${testMode() ? `<button class="link" data-skip="${quest.id}">🧪 ${t("skipPhoto")}</button>` : ""}`;
   } else {
     actions = `<button class="btn primary small" data-complete="${quest.id}">✓ ${t("markComplete")}</button>`;
   }
@@ -663,7 +693,7 @@ function renderCity(screen, { id }) {
         <div class="medal"><span>🏆</span><b>${c.short}</b></div>
         <h2>${t("cityTitle", { city: esc(L(c.name)) })}</h2>
         <p class="muted">${esc(L(c.story.finale))}</p>
-        <p class="who">${profile.avatar} ${esc(profile.name || "Explorer")}</p>
+        <p class="who">${profile.avatar} ${esc(profile.name || t("explorer"))}</p>
         <p class="faint">${formatDate(finishedAt)} · ${cityXp} XP</p>
         <ul>${c.places.map((p, i) => `<li>✅ ${i + 1}. ${p.emoji} ${esc(L(p.chapter))}</li>`).join("")}</ul>
       </div>
@@ -672,7 +702,7 @@ function renderCity(screen, { id }) {
         ${reward ? `<p class="muted">${t("voucher")}</p><div class="voucher">${reward.voucher}</div><p class="muted">${t("voucherHint", { prize: esc(L(c.reward.prize)) })}</p>` : `<button class="btn primary block" data-claim>🎁 ${t("claimReward")}</button>`}
       </section>
       <div class="actions">
-        ${navigator.share ? `<button class="btn ghost block" data-share>↗ Share</button>` : ""}
+        ${navigator.share ? `<button class="btn ghost block" data-share>↗ ${t("share")}</button>` : ""}
         <a class="btn ghost block" href="#/rewards">🎁 ${t("wallet")}</a>
         <a class="link" href="#/">${t("backHome")}</a>
       </div>
@@ -799,7 +829,7 @@ async function askGuide(message) {
 function renderProfile(screen) {
   const info = levelInfo(state.xp);
   screen.innerHTML = `
-    <section class="profile-head"><div class="avatar">${profile.avatar}</div><h1>${esc(profile.name || "Explorer")}</h1><p class="muted">Lv ${info.level} · ${esc(L(info.title))} · ${state.xp} XP</p></section>
+    <section class="profile-head"><div class="avatar">${profile.avatar}</div><h1>${esc(profile.name || t("explorer"))}</h1><p class="muted">Lv ${info.level} · ${esc(L(info.title))} · ${state.xp} XP</p></section>
     <section class="card level-card"><div class="bar"><i style="width:${Math.round(info.progress * 100)}%"></i></div><small>${info.ceil ? t("toNext", { n: info.ceil - state.xp, level: info.level + 1 }) : t("maxLevel")}</small></section>
     <p class="label">${t("levels")}</p>
     <div class="levels">${LEVELS.map((l, i) => `<div class="${i + 1 === info.level ? "current" : i + 1 < info.level ? "reached" : ""}"><b>${i + 1}</b><span>${esc(L(l.title))}</span><small>${l.xp} XP</small></div>`).join("")}</div>
@@ -807,7 +837,7 @@ function renderProfile(screen) {
     <div class="setting"><span>${t("language")}</span><div class="seg">${[["uz", "O'zbekcha"], ["en", "English"], ["ru", "Русский"]].map(([code, name]) => `<button class="option ${profile.lang === code ? "on" : ""}" data-lang="${code}">${name}</button>`).join("")}</div></div>
     <div class="setting"><span>${t("city")}</span><div class="seg">${CITIES.map((c) => `<button class="option ${profile.cityId === c.id ? "on" : ""}" data-city="${c.id}">${esc(L(c.name))}</button>`).join("")}</div></div>
     <div class="setting"><span>${t("interests")}</span><div class="chips-wrap">${INTERESTS.map((i) => `<button class="option ${profile.interests.includes(i.id) ? "on" : ""}" data-interest="${i.id}">${i.icon} ${esc(L(i.name))}</button>`).join("")}</div></div>
-    <label class="card toggle-row"><div><b>🧪 ${t("testMode")}</b><small class="muted">${t("testModeHint")}</small></div><input type="checkbox" id="test-mode" ${profile.testMode ? "checked" : ""} /></label>
+    <label class="card toggle-row"><div><b>🧪 ${t("testMode")}</b><small class="muted">${t(testAllowed() ? "testModeHint" : "testModeOff")}</small></div><input type="checkbox" id="test-mode" ${testMode() ? "checked" : ""} ${testAllowed() ? "" : "disabled"} /></label>
     <button class="btn ghost block danger" style="margin-top:14px" data-reset>${t("reset")}</button>`;
   all("[data-lang]", screen).forEach((b) => b.addEventListener("click", () => { profile.lang = b.dataset.lang; saveProfile(); render(); }));
   all("[data-city]", screen).forEach((b) => b.addEventListener("click", () => { profile.cityId = b.dataset.city; saveProfile(); render(); }));
@@ -821,6 +851,7 @@ function renderProfile(screen) {
   $("[data-reset]", screen).addEventListener("click", async () => {
     if (!confirm(t("resetConfirm"))) return;
     [KEYS.state, KEYS.outbox, KEYS.detox, KEYS.profile].forEach(store.remove);
+    log = []; store.set(KEYS.log, log);
     deviceId = uuid(); store.set(KEYS.device, deviceId);
     await photos.clear();
     state = emptyState();

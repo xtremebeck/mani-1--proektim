@@ -17,7 +17,7 @@ async function load() {
   $("#dashboard").hidden = false;
   $("#metrics").innerHTML = [["Travellers", data.metrics.travellers], ["Adventures done", data.metrics.adventures], ["Quests done", data.metrics.quests], ["Average XP", data.metrics.averageXp],
     ...Object.entries(data.languages).map(([lang, count]) => [`Lang · ${lang.toUpperCase()}`, count])]
-    .map(([label, value]) => `<div class="metric"><small>${label}</small><strong>${value}</strong></div>`).join("");
+    .map(([label, value]) => `<div class="metric"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("");
   $("#cities").innerHTML = data.cities.map((city) => {
     const max = Math.max(1, ...city.funnel.map((place) => place.started));
     return `<section class="panel"><h2>${escapeHtml(city.name)} funnel</h2>
@@ -25,9 +25,9 @@ async function load() {
       ${city.funnel.map((place) => `<div class="funnel-row"><span>${escapeHtml(place.name)}</span><span class="bar"><i style="width:${(place.completed / max) * 100}%"></i></span><b>${place.completed}/${place.started}</b></div>`).join("")}
     </section>`;
   }).join("");
-  $("#vouchers").innerHTML = data.vouchers.map((v) => `<tr><td><code>${v.voucher}</code></td><td>${v.kind === "coupon" ? "🎟️ " : "🏆 "}${escapeHtml(v.label)}</td><td>${when(v.at)}</td><td>${v.redeemedAt ? when(v.redeemedAt) : "—"}</td></tr>`).join("") || `<tr><td colspan="4">No vouchers yet</td></tr>`;
-  $("#offers").innerHTML = data.offers.map((o) => `<tr><td>${escapeHtml(o.partner)}</td><td>${escapeHtml(o.deal)}</td><td>${o.issued}</td><td>${o.redeemed}</td></tr>`).join("");
-  $("#recent").innerHTML = data.recent.map((r) => `<tr><td>${r.id}</td><td>${r.lang}</td><td>${r.level}</td><td>${r.xp}</td><td>${r.adventures}</td><td>${when(r.lastSeenAt)}</td></tr>`).join("") || `<tr><td colspan="6">No travellers yet</td></tr>`;
+  $("#vouchers").innerHTML = data.vouchers.map((v) => `<tr><td><code>${escapeHtml(v.voucher)}</code></td><td>${v.kind === "coupon" ? "🎟️ " : "🏆 "}${escapeHtml(v.label)}</td><td>${when(v.at)}</td><td>${v.redeemedAt ? when(v.redeemedAt) : "—"}</td></tr>`).join("") || `<tr><td colspan="4">No vouchers yet</td></tr>`;
+  $("#offers").innerHTML = data.offers.map((o) => `<tr><td>${escapeHtml(o.partner)}</td><td>${escapeHtml(o.deal)}</td><td>${escapeHtml(o.issued)}</td><td>${escapeHtml(o.redeemed)}</td></tr>`).join("");
+  $("#recent").innerHTML = data.recent.map((r) => `<tr>${[r.id, r.lang, r.level, r.xp, r.adventures, when(r.lastSeenAt)].map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="6">No travellers yet</td></tr>`;
 }
 
 $("#open").addEventListener("click", () => { key = $("#key").value; load().catch((error) => { $("#login-error").textContent = error.message; }); });
@@ -38,9 +38,10 @@ $("#redeem").addEventListener("click", async () => {
   try {
     const result = await api("redeem", { method: "POST", body: JSON.stringify({ voucher: $("#voucher").value }) });
     out.className = "ok";
-    out.textContent = `✓ ${result.voucher} redeemed (${result.cityId}). Hand over the reward.`;
-    load();
+    out.textContent = `✓ ${result.voucher} redeemed (${result.label}). Hand over the reward.`;
+    load().catch((error) => { out.textContent += ` (Dashboard refresh failed: ${error.message})`; });
   } catch (error) { out.className = "error"; out.textContent = error.message; }
 });
 
-if (key) load().catch(() => { $("#login").hidden = false; });
+// A stored key that no longer works is dropped so the login form shows cleanly.
+if (key) load().catch((error) => { sessionStorage.removeItem("uzq-admin-key"); key = ""; $("#login").hidden = false; $("#login-error").textContent = error.message; });
