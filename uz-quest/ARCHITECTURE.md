@@ -11,7 +11,7 @@ For setup, gameplay and content, see [README.md](README.md). This document expla
 ```mermaid
 flowchart TB
   subgraph Browser["Browser / phone (PWA)"]
-    UI["app/app.mjs<br/>screens, hash router"]
+    UI["app/<br/>screens · components · core"]
     Engine1["shared/engine.mjs<br/>game rules"]
     Content1["shared/content.mjs<br/>cities, quests, offers"]
     LS[("localStorage<br/>state · event log · outbox")]
@@ -45,7 +45,10 @@ flowchart TB
 |---|---|---|
 | `public/shared/content.mjs` | All game content as data: cities, places, quests, rarities, offers, badges, levels, in UZ/EN/RU | browser + server |
 | `public/shared/engine.mjs` | Pure game rules: `applyEvent`, `replay`, answer checks, XP, coupons, badges, suggestions | browser + server |
-| `public/app/app.mjs` | The web app: hash router, every screen, sync client, photo storage | browser |
+| `public/app/app.mjs` | Entry point: registers the screens, wires global listeners, draws the first screen | browser |
+| `public/app/core/` | `session` (state loaded from the device), `sync` (events, outbox, server sync), `router` (hash routes, `registerScreens`, `onBeforeRender`), `storage`, `ui` (DOM and text helpers), `feedback` (toasts, confetti), `location` | browser |
+| `public/app/components/cards.mjs` | Cards used by more than one screen: place cards, coupon tiles, collectible cards | browser |
+| `public/app/screens/` | One module per screen. `hunt.mjs` and `photos.mjs` are helpers of `place.mjs` | browser |
 | `public/app/i18n.mjs` | UI strings in three languages | browser |
 | `public/app/local-guide.mjs` | Offline Hamroh: keyword intents answered from local tips | browser |
 | `public/sw.js` | Service worker: precaches the app shell, network-first with cache fallback | browser |
@@ -55,6 +58,8 @@ flowchart TB
 | `backend/src/store.mjs` | JSON file store with serialized, atomic writes | server |
 | `backend/src/guide.mjs` | Hamroh with Claude | server |
 | `scripts/build.mjs` | Copies `public/` to `dist/` (without admin) for static hosting | build |
+
+Inside `public/app/`, imports only point downwards: `screens → components → core → shared`. Screens never import each other, with one exception: `place.mjs` uses its `hunt.mjs` and `photos.mjs` helpers, which report back through callbacks instead of importing `place.mjs`. A screen that starts something (the map, the detox timer, the GPS watch) stops it itself by registering with `onBeforeRender`. Every module must be listed in `SHELL` in `public/sw.js`; the offline browser test fails otherwise.
 
 ## Core ideas
 
@@ -84,7 +89,7 @@ Every event has a client-generated `id`, so the server can recognize a repeat an
 
 ```mermaid
 sequenceDiagram
-  participant UI as app.mjs
+  participant UI as core/sync.mjs
   participant LS as localStorage
   participant S as server.mjs
   UI->>UI: applyEvent (instant feedback)
@@ -160,14 +165,16 @@ Content and rules ship to the browser, so **nothing on the client is secret**: q
 | Rate limits per IP: admin failures, sync, guide, new devices | `rateLimit()` |
 | Only known event fields are stored; bodies are capped at 256 KB | `cleanEvent()`, `readBody()` |
 | Ambiguous voucher codes are refused instead of guessed | `redeem()` |
-| All rendered text is escaped; Claude replies are set as `textContent` | `app.mjs`, `admin.mjs` |
+| All rendered text is escaped; Claude replies are set as `textContent` | `public/app/`, `admin.mjs` |
 
 ## Testing
 
 - `backend/test/engine.test.mjs` covers the rules as pure functions: content integrity, every quest type, XP, coupons, story order, time-of-day stamps and the claim window.
 - `backend/test/server.test.mjs` starts real server processes on temporary data files and covers crashes, status codes, rate limits, production settings, event cleaning and redemption.
 
-Run both with `npm test`. CI runs the same tests before each GitHub Pages deploy.
+- `e2e/*.test.mjs` play the web app in headless Chromium against a real server: every screen, production settings, offline use and a treasure hunt driven by live GPS. Any JavaScript error in the page fails the run.
+
+Run the first two with `npm test` and the browser tests with `npm run test:e2e`. CI runs both on every pull request and before each GitHub Pages deploy.
 
 ## Known limits and next steps
 
@@ -177,5 +184,4 @@ Run both with `npm test`. CI runs the same tests before each GitHub Pages deploy
 | Answers ship to the client | Quests can be completed without visiting | Check high-value quests (meet, hunt) on the server; accept losing offline completion for those |
 | Identity is a random `deviceId` | Progress is lost with the phone or browser data | Add accounts (phone number or Telegram) and link devices |
 | In-memory rate limits | Reset on restart; behind a proxy all clients share one IP | Rate-limit at the reverse proxy |
-| `app.mjs` holds every screen | Harder to change as the app grows | Split into one module per screen behind the same router |
 | String-built UI (`innerHTML`) | Manual event wiring; escaping must not be forgotten | Revisit when moving to native apps |

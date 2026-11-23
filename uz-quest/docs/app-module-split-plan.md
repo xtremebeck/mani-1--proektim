@@ -1,6 +1,19 @@
 # Plan: split `public/app/app.mjs` into modules
 
-**Status:** proposed, not started. Start after PR #1 is merged (see [Prerequisites](#prerequisites)).
+**Status:** done. `app.mjs` went from 874 lines to an entry point of about 30 lines; the largest module is `screens/place.mjs` at about 140.
+
+| Step | PR | Notes |
+|---|---|---|
+| 0 Safety net | #3 | 35 browser tests, run in CI. They also found a treasure-hunt bug, fixed in the same PR |
+| 1 storage, ui | #4 | |
+| 2 session object | #5 | Renamed with scope analysis (188 references) |
+| 3 core modules | #6 | Language helpers moved to `ui.mjs` here, once `session` existed |
+| 4 shared cards | #7 | `storyCard` stayed with Home: only Home uses it |
+| 5 screens | #8 | `hunt.mjs` and `photos.mjs` report to `place.mjs` through callbacks, so there is no import cycle |
+| 6 cleanup per screen | #8 | Done as part of step 5: each screen registers its teardown with `onBeforeRender` |
+| 7 SHELL, docs | #4–#8 | `SHELL` was updated in every PR rather than at the end; docs in #8 |
+
+The rest of this document is the original plan.
 
 `public/app/app.mjs` holds the whole web app in one 874-line file: storage, session state, sync, the router and all 11 screens. This plan splits it into small modules without changing behaviour, one safe step at a time.
 
