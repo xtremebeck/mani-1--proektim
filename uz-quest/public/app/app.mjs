@@ -1,10 +1,10 @@
-import { BADGES, CITIES, DETOX_MINUTES, GIFT_STAMPS, INTERESTS, LEVELS, OFFERS, QUEST_TYPES, RARITY, XP } from "../shared/content.mjs";
 import {
-  cityComplete, cityDoneCount, collectedCards, dailyFor, dayKey, distanceMeters, earnedBadges, earnedGiftStamps,
-  emptyState, findCity, findPlace, findQuest, levelInfo, placeDone, placeProgress, placeXp, questRarity, questXp,
-  storyNext, suggestions
+  BADGES, CITIES, DETOX_MINUTES, GIFT_STAMPS, INTERESTS, LEVELS, OFFERS, QUEST_TYPES, RARITY, XP
+} from "../shared/content.mjs";
+import {
+  cityComplete, cityDoneCount, collectedCards, dailyFor, dayKey, distanceMeters, earnedBadges, earnedGiftStamps, emptyState,
+  findCity, findPlace, findQuest, levelInfo, placeDone, placeProgress, placeXp, questRarity, questXp, storyNext, suggestions
 } from "../shared/engine.mjs";
-import { localGuideReply } from "./local-guide.mjs";
 import { bindOtherCity, collectibleCard, couponTile, otherCityCard, placeCard } from "./components/cards.mjs";
 import { clearToasts, confetti, countUp, toast } from "./core/feedback.mjs";
 import { locate } from "./core/location.mjs";
@@ -13,6 +13,8 @@ import { AVATARS, city, saveProfile, session, testAllowed, testMode } from "./co
 import { KEYS, photos, store, uuid } from "./core/storage.mjs";
 import { apiUrl, checkServer, dispatch } from "./core/sync.mjs";
 import { $, all, art, errorText, esc, formatDate, formatDistance, gradient, L, pad, rarityChip, t } from "./core/ui.mjs";
+import { localGuideReply } from "./local-guide.mjs";
+import { renderCoupon, renderRewards } from "./screens/rewards.mjs";
 
 // State used by a single screen; each moves into its screen's module in step 5.
 let pendingPhotoQuest = null;
@@ -437,48 +439,6 @@ function renderCity(screen, { id }) {
   if (!reward) confetti();
   $("[data-claim]", screen)?.addEventListener("click", () => { dispatch({ type: "reward", cityId: c.id }); render(); });
   $("[data-share]", screen)?.addEventListener("click", () => navigator.share({ title: "UzQuest", text: `${t("cityTitle", { city: L(c.name) })} ${cityXp} XP 🏆`, url: location.origin }).catch(() => undefined));
-}
-
-// ---------- rewards wallet ----------
-function renderRewards(screen) {
-  const ordered = [city(), ...CITIES.filter((c) => c.id !== city().id)];
-  const unlocked = OFFERS.filter((o) => session.state.coupons[o.id]).sort((a, b) => session.state.coupons[b.id].at - session.state.coupons[a.id].at);
-  const locked = OFFERS.filter((o) => !session.state.coupons[o.id]);
-  screen.innerHTML = `
-    <h1 class="page-title">🎁 ${t("rewardsTitle")}</h1>
-    <p class="label">${t("wallet")}</p>
-    ${unlocked.length ? `<div class="coupon-list">${unlocked.map(couponTile).join("")}</div>` : `<div class="card empty-card">🎟️ ${t("noCoupons")}</div>`}
-    ${locked.length ? `<p class="label">${t("lockedOffers")}</p><div class="coupon-list">${locked.map(couponTile).join("")}</div>` : ""}
-    <p class="label">${t("cityVouchers")}</p>
-    ${ordered.map((c) => {
-      const reward = session.state.rewards[c.id];
-      const body = reward ? `<div class="voucher">${reward.voucher}</div><small class="muted">${t("voucherHint", { prize: esc(L(c.reward.prize)) })}</small>`
-        : cityComplete(session.state, c) ? `<a class="btn primary small" href="#/city/${c.id}">🎁 ${t("claimReward")}</a>`
-        : `<small class="muted">${t("rewardLocked", { n: c.places.length, city: esc(L(c.name)), prize: esc(L(c.reward.prize)) })}</small><div class="bar teal" style="margin-top:10px"><i style="width:${(cityDoneCount(session.state, c) / c.places.length) * 100}%"></i></div>`;
-      return `<section class="card" style="margin-bottom:10px"><div class="row between" style="margin-bottom:8px"><b>🏆 ${esc(L(c.reward.name))}</b><span class="chip">${cityDoneCount(session.state, c)}/${c.places.length}</span></div>${body}</section>`;
-    }).join("")}
-    <p class="faint small-note">ℹ️ ${t("demoPartner")}</p>`;
-}
-
-function renderCoupon(screen, { id }) {
-  const offer = OFFERS.find((o) => o.id === id);
-  const coupon = offer && session.state.coupons[offer.id];
-  if (!coupon) return go("#/rewards");
-  const expired = coupon.expiresAt < Date.now();
-  screen.innerHTML = `
-    <section class="complete coupon-detail">
-      <a class="back" href="#/rewards" style="position:static;display:grid;margin-bottom:6px">←</a>
-      <div class="ticket">
-        <span class="ticket-icon">${offer.icon}</span>
-        <h2>${esc(L(offer.deal))}</h2>
-        <p class="muted">${esc(L(offer.partner))}<br>📍 ${esc(L(offer.where))}</p>
-        <div class="ticket-cut"></div>
-        <p class="label" style="margin:0 0 8px">${t("showCashier")}</p>
-        <div class="voucher ${expired ? "expired" : ""}">${coupon.code}</div>
-        <p class="${expired ? "danger" : "ok"}">${expired ? t("expired") : t("validUntil", { date: formatDate(coupon.expiresAt) })}</p>
-      </div>
-      <p class="faint small-note">ℹ️ ${t("demoPartner")}</p>
-    </section>`;
 }
 
 // ---------- passport ----------
