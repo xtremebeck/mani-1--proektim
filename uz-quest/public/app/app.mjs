@@ -20,7 +20,6 @@ import { renderCoupon, renderRewards } from "./screens/rewards.mjs";
 import { renderWelcome } from "./screens/welcome.mjs";
 
 // State used by a single screen; each moves into its screen's module in step 5.
-let pendingPhotoQuest = null;
 const timelinePicks = {};
 let hunt = null; // { questId, watchId, distance, message }
 
@@ -78,9 +77,9 @@ function questCard(quest, unlocked) {
       return `<button data-pick="${i}" data-quest="${quest.id}" class="${pos >= 0 ? "picked" : ""}"><b>${pos >= 0 ? pos + 1 : ""}</b>${esc(L(item))}</button>`;
     }).join("")}</div>`;
   } else if (quest.type === "hunt") {
-    const active = hunt?.questId === quest.id;
-    actions = active
-      ? `<div class="hunt-panel ${hunt.heat ?? ""}"><strong id="hunt-status">${esc(hunt.message ?? t("huntSearching"))}</strong><div class="radar"><i></i></div></div>`
+    const current = activeHunt();
+    actions = current?.questId === quest.id
+      ? `<div class="hunt-panel ${current.heat ?? ""}"><strong id="hunt-status">${esc(current.message ?? t("huntSearching"))}</strong><div class="radar"><i></i></div></div>`
       : `<button class="btn primary small" data-hunt="${quest.id}">🧭 ${t("huntStart")}</button>`;
     if (testMode()) actions += `<button class="link" data-simulate="${quest.id}">🧪 ${t("huntSimulate")}</button>`;
   } else if (quest.type === "photo") {
@@ -99,7 +98,10 @@ function bindPlace(screen, place) {
   all("[data-complete]", screen).forEach((b) => b.addEventListener("click", () => completeQuest(place, { questId: b.dataset.complete })));
   all("[data-skip]", screen).forEach((b) => b.addEventListener("click", () => completeQuest(place, { questId: b.dataset.skip, test: true })));
   all("[data-simulate]", screen).forEach((b) => b.addEventListener("click", () => { stopHunt(); completeQuest(place, { questId: b.dataset.simulate, test: true }); }));
-  all("[data-photo]", screen).forEach((b) => b.addEventListener("click", () => { pendingPhotoQuest = { place, questId: b.dataset.photo }; $("#photo-input").click(); }));
+  all("[data-photo]", screen).forEach((b) => b.addEventListener("click", () => {
+    const questId = b.dataset.photo;
+    takePhoto(place.id, questId, () => completeQuest(place, { questId, hasPhoto: true }));
+  }));
   all("[data-answer]", screen).forEach((b) => b.addEventListener("click", () => {
     const result = completeQuest(place, { questId: b.dataset.quest, answer: Number(b.dataset.answer) });
     if (result?.error === "WRONG_ANSWER") { b.classList.add("wrong"); b.disabled = true; toast(t("wrong"), "error"); }
@@ -124,7 +126,10 @@ function bindPlace(screen, place) {
     }
     rerenderPlace(questId);
   }));
-  all("[data-hunt]", screen).forEach((b) => b.addEventListener("click", () => startHunt(place, b.dataset.hunt)));
+  all("[data-hunt]", screen).forEach((b) => b.addEventListener("click", () => {
+    const questId = b.dataset.hunt;
+    startHunt(findQuest(questId).quest, { onChange: () => rerenderPlace(questId), onArrive: (position) => completeQuest(place, { questId, ...position }) });
+  }));
 }
 
 function rerenderPlace(questId, effect = "") {
@@ -146,19 +151,24 @@ function completeQuest(place, fields) {
 }
 
 // ---------- treasure hunt (hot / cold) ----------
-function startHunt(place, questId) {
+const activeHunt = () => hunt;
+
+// Watches GPS and shows how close the traveller is to the quest's hidden point.
+// onChange: the hunt started or stopped, so the quest card needs redrawing.
+// onArrive: called with { lat, lng, accuracy } once the traveller is within the radius.
+function startHunt(quest, { onChange, onArrive }) {
   stopHunt();
-  const quest = findQuest(questId).quest;
+  const questId = quest.id;
   if (!navigator.geolocation) { toast(t("huntNoGps"), "error"); return; }
   hunt = { questId, message: t("huntSearching") };
-  rerenderPlace(questId);
+  onChange();
   hunt.watchId = navigator.geolocation.watchPosition((pos) => {
     if (!hunt || hunt.questId !== questId) return;
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
     const d = distanceMeters(lat, lng, quest.lat, quest.lng);
     if (d <= quest.radius + Math.min(accuracy, 50)) {
       stopHunt();
-      completeQuest(place, { questId, lat, lng, accuracy });
+      onArrive({ lat, lng, accuracy });
       return;
     }
     hunt.heat = d < 250 ? "hot" : d < 1000 ? "warm" : "cold";
@@ -169,7 +179,7 @@ function startHunt(place, questId) {
     if (!hunt || hunt.questId !== questId) return;
     // Only a refused permission ends the hunt. A lost signal (tunnel, indoors) or a slow fix
     // is temporary and the watch keeps running, so show "searching" until the next position.
-    if (error.code === error.PERMISSION_DENIED) { toast(t("huntNoGps"), "error"); stopHunt(); rerenderPlace(questId); return; }
+    if (error.code === error.PERMISSION_DENIED) { toast(t("huntNoGps"), "error"); stopHunt(); onChange(); return; }
     hunt.heat = null;
     hunt.message = t("huntSearching");
     const panel = document.querySelector(".hunt-panel");
@@ -183,6 +193,19 @@ function stopHunt() {
 }
 
 // ---------- photos ----------
+let pendingPhoto = null; // { placeId, questId, onTaken }
+
+// Opens the camera for a photo quest; onTaken runs once the photo is saved on the device.
+function takePhoto(placeId, questId, onTaken) {
+  pendingPhoto = { placeId, questId, onTaken };
+  $("#photo-input").click();
+}
+
+// The hidden file input is shared by every photo quest.
+function bindPhotoInput() {
+  $("#photo-input").addEventListener("change", (e) => { handlePhoto(e.target.files[0]); e.target.value = ""; });
+}
+
 async function loadQuestPhotos(place) {
   const shots = await photos.all();
   for (const shot of shots) {
@@ -192,12 +215,12 @@ async function loadQuestPhotos(place) {
 }
 
 async function handlePhoto(file) {
-  const pending = pendingPhotoQuest;
-  pendingPhotoQuest = null;
+  const pending = pendingPhoto;
+  pendingPhoto = null;
   if (!file || !pending) return;
   const dataUrl = await downscale(file, 900);
-  await photos.put({ questId: pending.questId, placeId: pending.place.id, dataUrl, at: Date.now() });
-  completeQuest(pending.place, { questId: pending.questId, hasPhoto: true });
+  await photos.put({ questId: pending.questId, placeId: pending.placeId, dataUrl, at: Date.now() });
+  pending.onTaken();
 }
 
 async function downscale(file, maxSide) {
@@ -219,7 +242,7 @@ onBeforeRender((r) => { if (hunt && !(r.name === "place" && findQuest(hunt.quest
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
 window.addEventListener("online", () => { render(); checkServer(); });
 window.addEventListener("offline", render);
-$("#photo-input").addEventListener("change", (e) => { handlePhoto(e.target.files[0]); e.target.value = ""; });
+bindPhotoInput();
 document.addEventListener("visibilitychange", () => { if (!document.hidden && route().name === "home") render(); });
 
 render();
