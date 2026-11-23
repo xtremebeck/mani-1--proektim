@@ -209,3 +209,47 @@ describe("offline: the app works without a network and syncs later", () => {
 
   test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });
 });
+
+describe("production server answering /health slowly: shortcuts never show", () => {
+  let server, context, page, errors, healthAnswered = 0;
+  before(async () => {
+    server = await start({ NODE_ENV: "production", ADMIN_KEY: "e2e-production-key", MEET_CODES_FILE: DEV_CODES_FILE });
+    context = await newContext(browser);
+    // A slow network or a busy server: the app renders long before it hears the server's policy.
+    await context.route("**/api/v1/health", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await route.continue();
+      healthAnswered++;
+    });
+    ({ page, errors } = await openPage(context));
+    await onboard(page, server.base, { cityId: tashkent.id });
+  });
+  after(async () => { await context?.close(); await server?.stop(); });
+
+  test("before the server answers, a first visit offers no test shortcut", async () => {
+    await page.goto(`${server.base}/app/#/place/${hazratiImam.id}`);
+    await page.locator("[data-start]").click();
+    assert.equal(healthAnswered, 0, "this check must run before /health answers");
+    assert.equal(await page.locator("[data-skip]").count(), 0);
+  });
+
+  test("after it answers, still none, and the toggle is locked", async () => {
+    while (healthAnswered === 0) await new Promise((resolve) => setTimeout(resolve, 100));
+    await page.goto(`${server.base}/app/#/profile`);
+    await page.waitForSelector("#test-mode:disabled");
+    await page.goto(`${server.base}/app/#/place/${hazratiImam.id}`);
+    assert.equal(await page.locator("[data-skip]").count(), 0);
+  });
+
+  test("offline, the last known policy still applies", async () => {
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 10000 });
+    await context.setOffline(true);
+    await page.reload();
+    await page.waitForSelector(".place-head");
+    assert.equal(await page.locator("[data-skip]").count(), 0);
+    await context.setOffline(false);
+  });
+
+  test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });
+});
