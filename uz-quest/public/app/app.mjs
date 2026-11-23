@@ -1,19 +1,18 @@
 import { QUEST_TYPES, RARITY } from "../shared/content.mjs";
-import {
-  distanceMeters, findPlace, findQuest, placeDone, placeProgress, placeXp, questRarity, questXp
-} from "../shared/engine.mjs";
+import { findPlace, findQuest, placeDone, placeProgress, placeXp, questRarity, questXp } from "../shared/engine.mjs";
 import { toast } from "./core/feedback.mjs";
 import { locate } from "./core/location.mjs";
-import { go, onBeforeRender, registerScreens, render, route } from "./core/router.mjs";
+import { go, registerScreens, render, route } from "./core/router.mjs";
 import { saveProfile, session, testMode } from "./core/session.mjs";
 import { photos } from "./core/storage.mjs";
 import { checkServer, dispatch } from "./core/sync.mjs";
-import { $, all, errorText, esc, formatDistance, gradient, L, rarityChip, t } from "./core/ui.mjs";
+import { $, all, errorText, esc, gradient, L, rarityChip, t } from "./core/ui.mjs";
 import { renderCity } from "./screens/city.mjs";
 import { renderDone } from "./screens/done.mjs";
 import { renderExplore } from "./screens/explore.mjs";
 import { renderGuide } from "./screens/guide.mjs";
 import { renderHome } from "./screens/home.mjs";
+import { activeHunt, startHunt, stopHunt } from "./screens/hunt.mjs";
 import { renderPassport } from "./screens/passport.mjs";
 import { renderProfile } from "./screens/profile.mjs";
 import { renderCoupon, renderRewards } from "./screens/rewards.mjs";
@@ -21,8 +20,6 @@ import { renderWelcome } from "./screens/welcome.mjs";
 
 // State used by a single screen; each moves into its screen's module in step 5.
 const timelinePicks = {};
-let hunt = null; // { questId, watchId, distance, message }
-
 // ---------- place (chapter) ----------
 function renderPlace(screen, { id }) {
   const found = findPlace(id);
@@ -150,48 +147,6 @@ function completeQuest(place, fields) {
   return result;
 }
 
-// ---------- treasure hunt (hot / cold) ----------
-const activeHunt = () => hunt;
-
-// Watches GPS and shows how close the traveller is to the quest's hidden point.
-// onChange: the hunt started or stopped, so the quest card needs redrawing.
-// onArrive: called with { lat, lng, accuracy } once the traveller is within the radius.
-function startHunt(quest, { onChange, onArrive }) {
-  stopHunt();
-  const questId = quest.id;
-  if (!navigator.geolocation) { toast(t("huntNoGps"), "error"); return; }
-  hunt = { questId, message: t("huntSearching") };
-  onChange();
-  hunt.watchId = navigator.geolocation.watchPosition((pos) => {
-    if (!hunt || hunt.questId !== questId) return;
-    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-    const d = distanceMeters(lat, lng, quest.lat, quest.lng);
-    if (d <= quest.radius + Math.min(accuracy, 50)) {
-      stopHunt();
-      onArrive({ lat, lng, accuracy });
-      return;
-    }
-    hunt.heat = d < 250 ? "hot" : d < 1000 ? "warm" : "cold";
-    hunt.message = t(hunt.heat === "hot" ? "huntHot" : hunt.heat === "warm" ? "huntWarm" : "huntCold", { d: formatDistance(d) });
-    const panel = document.querySelector(".hunt-panel");
-    if (panel) { panel.className = `hunt-panel ${hunt.heat}`; $("#hunt-status").textContent = hunt.message; }
-  }, (error) => {
-    if (!hunt || hunt.questId !== questId) return;
-    // Only a refused permission ends the hunt. A lost signal (tunnel, indoors) or a slow fix
-    // is temporary and the watch keeps running, so show "searching" until the next position.
-    if (error.code === error.PERMISSION_DENIED) { toast(t("huntNoGps"), "error"); stopHunt(); onChange(); return; }
-    hunt.heat = null;
-    hunt.message = t("huntSearching");
-    const panel = document.querySelector(".hunt-panel");
-    if (panel) { panel.className = "hunt-panel"; $("#hunt-status").textContent = hunt.message; }
-  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
-}
-
-function stopHunt() {
-  if (hunt?.watchId != null) navigator.geolocation.clearWatch(hunt.watchId);
-  hunt = null;
-}
-
 // ---------- photos ----------
 let pendingPhoto = null; // { placeId, questId, onTaken }
 
@@ -236,8 +191,6 @@ async function downscale(file, maxSide) {
 
 // ---------- boot ----------
 registerScreens({ welcome: renderWelcome, home: renderHome, explore: renderExplore, place: renderPlace, done: renderDone, city: renderCity, passport: renderPassport, rewards: renderRewards, coupon: renderCoupon, guide: renderGuide, profile: renderProfile });
-// Leaving a screen stops what it started.
-onBeforeRender((r) => { if (hunt && !(r.name === "place" && findQuest(hunt.questId)?.place.id === r.id)) stopHunt(); });
 
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
 window.addEventListener("online", () => { render(); checkServer(); });
