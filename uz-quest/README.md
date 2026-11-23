@@ -82,11 +82,13 @@ npm start      # http://127.0.0.1:4174
 npm test       # game rules and server tests
 ```
 
+**Browser tests.** `npm run test:e2e` plays the app in headless Chromium against a real server: onboarding, quests, photo upload, sync, the admin panel, production settings and offline use. First run `npm install` and `npx playwright install chromium`. To reuse a Chromium you already have, set `CHROMIUM_PATH` to its executable.
+
 To test on your phone over the same Wi-Fi, run `HOST=0.0.0.0 ADMIN_KEY=<your-key> npm start` (the server refuses to listen on the network with the dev key) and open `http://<your-PC-IP>:4174`. GPS and the camera need `https://`, so use the GitHub Pages link for real treasure hunts.
 
 **Claude AI guide (optional).** Run `npm install`, then `ANTHROPIC_API_KEY=... npm start`. Without a key, Hamroh uses its built-in offline answers.
 
-**Static hosting.** `npm run build` writes `dist/`. GitHub Pages publishes it automatically on every push to `main`.
+**Static hosting.** `npm run build` writes `dist/`. GitHub Pages publishes it automatically on every push to `main`, after `npm test` and the browser tests pass. Pull requests run the same tests.
 
 ## Project layout
 

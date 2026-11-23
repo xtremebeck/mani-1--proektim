@@ -1,39 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { CITIES } from "../../public/shared/content.mjs";
 import { dailyFor, dayKey } from "../../public/shared/engine.mjs";
-
-const serverFile = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/server.mjs");
-let nextPort = 4300 + Math.floor(Math.random() * 500);
-
-// Starts a server on a fresh data file. Resolves once it listens, or with the exit code if it quits.
-async function start(env = {}) {
-  const dir = await mkdtemp(path.join(tmpdir(), "uzq-test-"));
-  const port = nextPort++;
-  const child = spawn(process.execPath, [serverFile], {
-    env: { PATH: process.env.PATH, PORT: String(port), DATA_FILE: path.join(dir, "store.json"), ...env },
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  let output = "";
-  child.stderr.on("data", (chunk) => { output += chunk; });
-  const exitCode = await new Promise((resolve) => {
-    child.stdout.on("data", (chunk) => { if (String(chunk).includes("UzQuest:")) resolve(null); });
-    child.on("exit", (code) => resolve(code));
-  });
-  const base = `http://127.0.0.1:${port}`;
-  return {
-    base, dir, child, exitCode, output: () => output,
-    alive: () => child.exitCode === null,
-    async stop() { child.kill(); await rm(dir, { recursive: true, force: true }); }
-  };
-}
-
-const post = (base, route, body, headers = {}) => fetch(`${base}${route}`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) });
+import { post, start } from "./support/server.mjs";
 
 test("a malformed URL gets a 400 and does not crash the server", async () => {
   const server = await start();

@@ -7,10 +7,14 @@
   "scripts": {
     "start": "node backend/src/server.mjs",
     "test": "node --test backend/test/*.test.mjs",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "test:e2e": "node --test e2e/*.test.mjs"
   },
   "engines": { "node": ">=20" },
   "optionalDependencies": {
     "@anthropic-ai/sdk": "^1.12.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.1"
   }
 }

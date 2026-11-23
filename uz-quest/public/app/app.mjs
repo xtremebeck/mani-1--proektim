@@ -567,7 +567,16 @@ function startHunt(place, questId) {
     hunt.message = t(hunt.heat === "hot" ? "huntHot" : hunt.heat === "warm" ? "huntWarm" : "huntCold", { d: formatDistance(d) });
     const panel = document.querySelector(".hunt-panel");
     if (panel) { panel.className = `hunt-panel ${hunt.heat}`; $("#hunt-status").textContent = hunt.message; }
-  }, () => { toast(t("huntNoGps"), "error"); stopHunt(); rerenderPlace(questId); }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+  }, (error) => {
+    if (!hunt || hunt.questId !== questId) return;
+    // Only a refused permission ends the hunt. A lost signal (tunnel, indoors) or a slow fix
+    // is temporary and the watch keeps running, so show "searching" until the next position.
+    if (error.code === error.PERMISSION_DENIED) { toast(t("huntNoGps"), "error"); stopHunt(); rerenderPlace(questId); return; }
+    hunt.heat = null;
+    hunt.message = t("huntSearching");
+    const panel = document.querySelector(".hunt-panel");
+    if (panel) { panel.className = "hunt-panel"; $("#hunt-status").textContent = hunt.message; }
+  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
 }
 
 function stopHunt() {

@@ -1,24 +1,63 @@
-# Publishes the UzQuest website + web app (uz-quest/) to GitHub Pages on every push to main.
+# Tests UzQuest (uz-quest/) on every pull request, and publishes the website + web app
+# to GitHub Pages on every push to main once the tests pass.
 name: Deploy UzQuest to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths: ["uz-quest/**", ".github/workflows/pages.yml"]
+  pull_request:
+    paths: ["uz-quest/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: uz-quest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test game rules and server
+        run: npm test
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browser
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps --only-shell chromium
+      - name: Install Chromium system libraries
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Browser tests (online, production settings, offline)
+        run: npm run test:e2e
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    # Only deploys share this group, so a pull request run never cancels a deploy.
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -27,9 +66,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Test game rules
-        run: npm test
-        working-directory: uz-quest
       - name: Build static site
         run: npm run build
         working-directory: uz-quest
