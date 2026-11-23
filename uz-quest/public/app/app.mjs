@@ -1,3 +1,5 @@
+// Entry point: registers the screens, wires global listeners and draws the first screen.
+// Everything else lives in core/ (state, sync, routing), components/ and screens/.
 import { locate } from "./core/location.mjs";
 import { registerScreens, render, route } from "./core/router.mjs";
 import { checkServer } from "./core/sync.mjs";
@@ -13,7 +15,6 @@ import { renderProfile } from "./screens/profile.mjs";
 import { renderCoupon, renderRewards } from "./screens/rewards.mjs";
 import { renderWelcome } from "./screens/welcome.mjs";
 
-// ---------- boot ----------
 registerScreens({ welcome: renderWelcome, home: renderHome, explore: renderExplore, place: renderPlace, done: renderDone, city: renderCity, passport: renderPassport, rewards: renderRewards, coupon: renderCoupon, guide: renderGuide, profile: renderProfile });
 
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
