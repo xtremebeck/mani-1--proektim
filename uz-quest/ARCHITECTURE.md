@@ -109,6 +109,30 @@ sequenceDiagram
 - Installs created before the log existed have no log (`null`). They keep their state as is.
 - Photos stay on the device in IndexedDB. Only `hasPhoto: true` is sent.
 
+### Telegram accounts
+
+Playing needs no account. Logging in with Telegram keeps progress safe and shares it across phones.
+
+```mermaid
+sequenceDiagram
+  participant App as core/auth.mjs
+  participant S as server (accounts.mjs)
+  participant Bot as Telegram bot
+  App->>S: POST /auth/telegram/start { deviceId }
+  S-->>App: { token, url: t.me/<bot>?start=<token> }
+  App->>Bot: traveller opens the link, taps Start
+  Bot->>S: /start <token> (long polling)
+  S->>Bot: "Log in on this phone?" [Yes, it's me] [No]
+  Bot->>S: Yes (same Telegram user, before expiry)
+  App->>S: POST /auth/telegram/status { token } (every 2 s)
+  S-->>App: { session, account, state } once; device linked
+```
+
+- **Progress has one owner.** A device that is not logged in owns its own state. Once linked, the device syncs into the account's state, and every sync returns it, so each phone shows the progress of all of them. On the phone, that state plus the events not sent yet is the truth; the guest event log is no longer used.
+- **Merging.** Linking a device applies its accepted events on top of the account's state. Nothing the account already has changes (a coupon code shown on another phone keeps its code), and a quest done on both phones counts once.
+- **Logging out** (or a reset) gives the phone a new device id and an empty state. The old device stays linked, so its history remains part of the account.
+- **Not synced:** the profile (name, avatar, interests). A new phone goes through onboarding before it can log in.
+
 ### 4. Content is data
 
 Adding a city, place, quest, offer or badge means editing `content.mjs` only. The UI, the suggestions, the admin funnels and the tests all read from it. `engine.test.mjs` checks that ids are unique, answers are valid and every text exists in three languages.
@@ -126,8 +150,11 @@ The app detects the server through `GET /api/v1/health` and degrades on its own 
 
 | Route | Auth | Purpose |
 |---|---|---|
-| `GET /api/v1/health` | — | Liveness, whether Claude is available, whether test events are allowed |
-| `POST /api/v1/sync` | `deviceId` | Upload events; returns accepted and rejected ids plus the server state |
+| `GET /api/v1/health` | — | Liveness, whether Claude is available, whether test events are allowed, the bot's username (`telegram`, or null) |
+| `POST /api/v1/sync` | `deviceId`; a linked device also needs `Authorization: Bearer <session>` (401 without) | Upload events; returns accepted and rejected ids plus the owner's state (the account's, once linked) |
+| `POST /api/v1/auth/telegram/start` | — | Start a login for `deviceId`: a token and its `t.me` link; 503 without a bot, 409 if already linked |
+| `POST /api/v1/auth/telegram/status` | login token | `pending`, `cancelled`, `expired`, `used`, or `ok` with the session, the account and its state (handed out once) |
+| `POST /api/v1/auth/logout` | session | Ends the session |
 | `POST /api/v1/meet/check` | — | Is this the secret word of a meet quest? Records nothing; rate-limited with sync's wrong guesses |
 | `POST /api/v1/guide` | — | Ask Hamroh (Claude); returns 503 if not configured, 502 if it failed |
 | `GET /api/v1/admin/overview` | `x-admin-key` | Metrics, funnels per place, offers, vouchers, recent travellers |
@@ -139,11 +166,16 @@ Everything else is served as a static file from `public/`, with protection again
 
 | Table | Row | Columns |
 |---|---|---|
-| `devices` | One phone | `id`, `created_at`, `last_seen_at`, `lang`, `state` (JSON: `{ v: 3, xp, started, quests, places, dailies, detox, rewards, coupons }`), `redeemed` (JSON: `{ [cityId \| "coupon:<offerId>"]: timestamp }`) |
+| `devices` | One phone | `id`, `account_id` (null until logged in), `created_at`, `last_seen_at`, `lang`, `state` (JSON: `{ v: 3, xp, started, quests, places, dailies, detox, rewards, coupons }`), `redeemed` (JSON: `{ [cityId \| "coupon:<offerId>"]: timestamp }`) |
 | `events` | One accepted event | `device_id`, `id`, `received_at`, `data` (JSON, known fields only) |
-| `codes` | One voucher or coupon code a device holds | `device_id`, `key` (`cityId` or `coupon:<offerId>`), `code` (indexed) |
+| `accounts` | One Telegram user | `id`, `telegram_id`, `name`, `username`, `created_at`, `state`, `redeemed` (as on `devices`) |
+| `codes` | One voucher or coupon code an owner holds | `owner` (`d:<device id>` or `a:<account id>`), `key` (`cityId` or `coupon:<offerId>`), `code` (indexed) |
+| `logins` | One "log in with Telegram" attempt | `token_hash`, `device_id`, `expires_at`, `status` (`pending` → `asked` → `confirmed` → `used`, or `cancelled`), the Telegram user |
+| `sessions` | One logged-in device | `token_hash`, `account_id`, `device_id` |
 
-The game state stays a JSON column because the engine owns its shape; the server never queries inside it. `codes` is rebuilt from the state whenever a device is saved, so redemption looks a code up instead of scanning every device.
+Tokens are stored only as SHA-256 hashes. Schema changes are numbered migrations recorded in `PRAGMA user_version`, so an older database is upgraded on start.
+
+The game state stays a JSON column because the engine owns its shape; the server never queries inside it. `codes` is rebuilt from the state whenever a device or account is saved, so redemption looks a code up instead of scanning every traveller.
 
 The driver is synchronous, and each sync or redemption runs inside `store.transaction(...)`, so it is atomic and requests cannot interleave. A sync only reads and writes its own device, unlike the old JSON file that was rewritten whole: with 5,000 devices a sync went from about 130 ms to about 1 ms. The database runs in WAL mode. A device whose state has an older `v` loses its events and codes and starts over on its next sync.
 
@@ -156,6 +188,9 @@ Content and rules ship to the browser, so everything in them can be read from th
 | Control | Where |
 |---|---|
 | Every event is re-validated with the shared engine | `sync()` |
+| Telegram login needs a second step in the bot ("Yes, it's me"), answerable only by the Telegram user who opened the link and only before it expires (10 min). The prompt warns never to confirm a link someone sent. This stops an attacker from sending their own login link to a victim to link the victim's account to the attacker's phone | `accounts.mjs` |
+| A linked device can only sync with its session; tokens are random (192-bit) and stored hashed; a session is handed out once | `server.mjs`, `store.mjs` |
+| The partner dashboard lists accounts as `acct-<n>`, never by Telegram name | `overview()` |
 | Secret words exist only on the server (`MEET_CODES_FILE`); the phone accepts a word provisionally and the server confirms or rejects it | `server.mjs`, `checkQuest()` |
 | 10 wrong secret words per address per minute, shared by `/meet/check` and sync; beyond that words are not judged at all (`TRY_LATER`), so a right guess cannot leak | `server.mjs` |
 | Daily and detox claims older than 48h are rejected (`CLAIM_EXPIRED`) | `engine.mjs`, enforced when the server passes `now` |
@@ -182,6 +217,8 @@ Run the first two with `npm test` and the browser tests with `npm run test:e2e`.
 | SQLite in one process | One server process; queries block the event loop briefly | Fine for a pilot. For several servers, move to PostgreSQL behind the same `SqliteStore` methods |
 | Quiz, riddle and timeline answers ship to the client | They can be read instead of found on site | Acceptable: they are trivia, not proof of a visit |
 | Treasure-hunt GPS and photo quests are trusted | Coordinates can be spoofed and `hasPhoto` is just a flag | The server cannot prove either. Rewards that matter should depend on meet-a-local quests, which a partner confirms on site |
-| Identity is a random `deviceId` | Progress is lost with the phone or browser data | Add accounts (phone number or Telegram) and link devices |
+| Accounts are optional | A guest's progress is lost with the phone or browser data | The app offers Telegram login in Profile |
+| No way to delete an account yet | A traveller cannot remove their data themselves | Add deletion (account, its devices and events) before a public launch |
+| One bot process | Long polling allows only one server using the bot token | Switch to a webhook for several servers |
 | In-memory rate limits | Reset on restart; behind a proxy all clients share one IP | Rate-limit at the reverse proxy |
 | String-built UI (`innerHTML`) | Manual event wiring; escaping must not be forgotten | Revisit when moving to native apps |

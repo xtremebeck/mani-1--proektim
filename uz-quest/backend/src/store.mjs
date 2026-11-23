@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -6,43 +7,97 @@ import { DatabaseSync } from "node:sqlite";
 // A sync reads and writes one traveller's rows instead of the whole data set. Calls are
 // synchronous, so wrap every read-modify-write in transaction() to keep it atomic.
 //
-// devices: one row per phone, with the game state as JSON (the engine owns its shape).
-// events:  every accepted event, so repeats are recognized and history can be replayed.
-// codes:   an index of each device's voucher and coupon codes, for redemption.
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS devices (
-    id TEXT PRIMARY KEY,
-    created_at INTEGER NOT NULL,
-    last_seen_at INTEGER,
-    lang TEXT NOT NULL,
-    state TEXT NOT NULL,
-    redeemed TEXT NOT NULL DEFAULT '{}'
-  );
-  CREATE TABLE IF NOT EXISTS events (
-    device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-    id TEXT NOT NULL,
-    received_at INTEGER NOT NULL,
-    data TEXT NOT NULL,
-    PRIMARY KEY (device_id, id)
-  );
-  CREATE TABLE IF NOT EXISTS codes (
-    device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-    key TEXT NOT NULL,
-    code TEXT NOT NULL,
-    PRIMARY KEY (device_id, key)
-  );
-  CREATE INDEX IF NOT EXISTS codes_by_code ON codes(code);
-`;
+// Progress has one owner: a device that is not logged in, or the Telegram account a device
+// is linked to. Owners are written "d:<device id>" or "a:<account id>" in the codes index.
+//
+// devices:  one row per phone; its own game state (JSON) until it is linked to an account.
+// accounts: one row per Telegram user; the game state merged from all its devices.
+// events:   every accepted event, per device, so repeats are recognized and history can be replayed.
+// codes:    an index of each owner's voucher and coupon codes, for redemption.
+// logins:   pending "log in with Telegram" requests. sessions: logged-in devices.
+// Tokens are only stored as SHA-256 hashes.
+//
+// Each migration runs once, in order; PRAGMA user_version records how many have run.
+const MIGRATIONS = [
+  `CREATE TABLE IF NOT EXISTS devices (
+     id TEXT PRIMARY KEY,
+     created_at INTEGER NOT NULL,
+     last_seen_at INTEGER,
+     lang TEXT NOT NULL,
+     state TEXT NOT NULL,
+     redeemed TEXT NOT NULL DEFAULT '{}'
+   );
+   CREATE TABLE IF NOT EXISTS events (
+     device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+     id TEXT NOT NULL,
+     received_at INTEGER NOT NULL,
+     data TEXT NOT NULL,
+     PRIMARY KEY (device_id, id)
+   );
+   CREATE TABLE IF NOT EXISTS codes (
+     device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+     key TEXT NOT NULL,
+     code TEXT NOT NULL,
+     PRIMARY KEY (device_id, key)
+   );`,
+  // Telegram accounts. The codes index moves from devices to owners and is rebuilt below.
+  `CREATE TABLE accounts (
+     id INTEGER PRIMARY KEY,
+     telegram_id INTEGER NOT NULL UNIQUE,
+     name TEXT,
+     username TEXT,
+     created_at INTEGER NOT NULL,
+     state TEXT NOT NULL,
+     redeemed TEXT NOT NULL DEFAULT '{}'
+   );
+   ALTER TABLE devices ADD COLUMN account_id INTEGER REFERENCES accounts(id);
+   CREATE INDEX devices_by_account ON devices(account_id);
+   DROP TABLE codes;
+   CREATE TABLE codes (
+     owner TEXT NOT NULL,
+     key TEXT NOT NULL,
+     code TEXT NOT NULL,
+     PRIMARY KEY (owner, key)
+   );
+   CREATE INDEX codes_by_code ON codes(code);
+   CREATE TABLE logins (
+     id INTEGER PRIMARY KEY,
+     token_hash TEXT NOT NULL UNIQUE,
+     device_id TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     expires_at INTEGER NOT NULL,
+     status TEXT NOT NULL,
+     telegram_id INTEGER,
+     name TEXT,
+     username TEXT
+   );
+   CREATE TABLE sessions (
+     token_hash TEXT PRIMARY KEY,
+     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+     device_id TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   );`
+];
+
+export const hashToken = (token) => createHash("sha256").update(String(token)).digest("hex");
 
 // City vouchers are keyed by city id, partner coupons by "coupon:<offer id>".
 const codesOf = (state) => [
-  ...Object.entries(state.rewards ?? {}).map(([cityId, reward]) => [cityId, reward.voucher]),
-  ...Object.entries(state.coupons ?? {}).map(([offerId, coupon]) => [`coupon:${offerId}`, coupon.code])
+  ...Object.entries(state?.rewards ?? {}).map(([cityId, reward]) => [cityId, reward.voucher]),
+  ...Object.entries(state?.coupons ?? {}).map(([offerId, coupon]) => [`coupon:${offerId}`, coupon.code])
 ];
 
 const toDevice = (row) => row && {
-  id: row.id, createdAt: row.created_at, lastSeenAt: row.last_seen_at, lang: row.lang,
+  id: row.id, accountId: row.account_id ?? null, createdAt: row.created_at, lastSeenAt: row.last_seen_at, lang: row.lang,
   state: JSON.parse(row.state), redeemed: JSON.parse(row.redeemed)
+};
+const toAccount = (row) => row && {
+  id: row.id, telegramId: row.telegram_id, name: row.name, username: row.username, createdAt: row.created_at,
+  state: JSON.parse(row.state), redeemed: JSON.parse(row.redeemed)
+};
+const toLogin = (row) => row && {
+  id: row.id, deviceId: row.device_id, createdAt: row.created_at, expiresAt: row.expires_at, status: row.status,
+  telegramId: row.telegram_id, name: row.name, username: row.username
 };
 
 export class SqliteStore {
@@ -54,7 +109,7 @@ export class SqliteStore {
     try {
       this.#db = new DatabaseSync(file);
       this.#db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
-      this.#db.exec(SCHEMA);
+      this.#migrate();
     } catch (error) {
       // Fail at startup rather than answering every request with a 500.
       throw Error(`Database ${file} could not be opened (${error.message}). Restore it from a backup or move it away to start fresh.`);
@@ -63,17 +118,50 @@ export class SqliteStore {
     this.#sql = {
       device: sql("SELECT * FROM devices WHERE id = ?"),
       devices: sql("SELECT * FROM devices"),
+      devicesOf: sql("SELECT * FROM devices WHERE account_id = ?"),
       count: sql("SELECT COUNT(*) AS n FROM devices"),
-      putDevice: sql(`INSERT INTO devices (id, created_at, last_seen_at, lang, state, redeemed) VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET last_seen_at = excluded.last_seen_at, lang = excluded.lang, state = excluded.state, redeemed = excluded.redeemed`),
+      putDevice: sql(`INSERT INTO devices (id, account_id, created_at, last_seen_at, lang, state, redeemed) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET account_id = excluded.account_id, last_seen_at = excluded.last_seen_at, lang = excluded.lang, state = excluded.state, redeemed = excluded.redeemed`),
+      account: sql("SELECT * FROM accounts WHERE id = ?"),
+      accountByTelegram: sql("SELECT * FROM accounts WHERE telegram_id = ?"),
+      accounts: sql("SELECT * FROM accounts"),
+      insertAccount: sql("INSERT INTO accounts (telegram_id, name, username, created_at, state, redeemed) VALUES (?, ?, ?, ?, ?, ?)"),
+      updateAccount: sql("UPDATE accounts SET name = ?, username = ?, state = ?, redeemed = ? WHERE id = ?"),
       eventIds: sql("SELECT id FROM events WHERE device_id = ?"),
       addEvent: sql("INSERT OR IGNORE INTO events (device_id, id, received_at, data) VALUES (?, ?, ?, ?)"),
       events: sql("SELECT data, received_at FROM events WHERE device_id = ? ORDER BY received_at, rowid"),
       clearEvents: sql("DELETE FROM events WHERE device_id = ?"),
-      clearCodes: sql("DELETE FROM codes WHERE device_id = ?"),
-      addCode: sql("INSERT OR REPLACE INTO codes (device_id, key, code) VALUES (?, ?, ?)"),
-      owners: sql("SELECT device_id AS deviceId, key FROM codes WHERE code = ?")
+      clearCodes: sql("DELETE FROM codes WHERE owner = ?"),
+      addCode: sql("INSERT OR REPLACE INTO codes (owner, key, code) VALUES (?, ?, ?)"),
+      owners: sql("SELECT owner, key FROM codes WHERE code = ?"),
+      addLogin: sql("INSERT INTO logins (token_hash, device_id, created_at, expires_at, status) VALUES (?, ?, ?, ?, 'pending')"),
+      loginByHash: sql("SELECT * FROM logins WHERE token_hash = ?"),
+      loginById: sql("SELECT * FROM logins WHERE id = ?"),
+      updateLogin: sql("UPDATE logins SET status = ?, telegram_id = ?, name = ?, username = ? WHERE id = ?"),
+      dropOldLogins: sql("DELETE FROM logins WHERE expires_at < ?"),
+      addSession: sql("INSERT INTO sessions (token_hash, account_id, device_id, created_at) VALUES (?, ?, ?, ?)"),
+      session: sql("SELECT account_id AS accountId, device_id AS deviceId FROM sessions WHERE token_hash = ?"),
+      dropSession: sql("DELETE FROM sessions WHERE token_hash = ?")
     };
+  }
+
+  #migrate() {
+    const done = this.#db.prepare("PRAGMA user_version").get().user_version;
+    for (let version = done; version < MIGRATIONS.length; version++) {
+      this.transaction(() => {
+        this.#db.exec(MIGRATIONS[version]);
+        if (version === 1) this.#reindexDevices();
+        this.#db.exec(`PRAGMA user_version = ${version + 1}`);
+      });
+    }
+  }
+
+  // After migration 2 the codes index is empty; refill it from the devices that hold codes.
+  #reindexDevices() {
+    const add = this.#db.prepare("INSERT OR REPLACE INTO codes (owner, key, code) VALUES (?, ?, ?)");
+    for (const row of this.#db.prepare("SELECT id, state FROM devices").all()) {
+      for (const [key, code] of codesOf(JSON.parse(row.state))) if (code) add.run(`d:${row.id}`, key, code);
+    }
   }
 
   // Runs fn inside one transaction; any throw rolls everything back.
@@ -89,16 +177,22 @@ export class SqliteStore {
     }
   }
 
+  #index(owner, state) {
+    this.#sql.clearCodes.run(owner);
+    for (const [key, code] of codesOf(state)) if (code) this.#sql.addCode.run(owner, key, code);
+  }
+
+  // ---------- devices ----------
   device(id) { return toDevice(this.#sql.device.get(id)); }
   devices() { return this.#sql.devices.all().map(toDevice); }
+  devicesOf(accountId) { return this.#sql.devicesOf.all(accountId).map(toDevice); }
   eventIds(deviceId) { return new Set(this.#sql.eventIds.all(deviceId).map((row) => row.id)); }
   events(deviceId) { return this.#sql.events.all(deviceId).map((row) => ({ ...JSON.parse(row.data), receivedAt: row.received_at })); }
 
-  // Inserts or updates a device and refreshes its code index.
+  // Inserts or updates a device. Only a device that is not linked owns its codes.
   putDevice(device) {
-    this.#sql.putDevice.run(device.id, device.createdAt, device.lastSeenAt ?? null, device.lang, JSON.stringify(device.state), JSON.stringify(device.redeemed ?? {}));
-    this.#sql.clearCodes.run(device.id);
-    for (const [key, code] of codesOf(device.state)) if (code) this.#sql.addCode.run(device.id, key, code);
+    this.#sql.putDevice.run(device.id, device.accountId ?? null, device.createdAt, device.lastSeenAt ?? null, device.lang, JSON.stringify(device.state), JSON.stringify(device.redeemed ?? {}));
+    this.#index(`d:${device.id}`, device.accountId ? null : device.state);
   }
 
   addEvent(deviceId, event, receivedAt) { this.#sql.addEvent.run(deviceId, event.id, receivedAt, JSON.stringify(event)); }
@@ -106,11 +200,38 @@ export class SqliteStore {
   // Forgets a device's history, before it starts over with a fresh state.
   clearDevice(deviceId) {
     this.#sql.clearEvents.run(deviceId);
-    this.#sql.clearCodes.run(deviceId);
+    this.#sql.clearCodes.run(`d:${deviceId}`);
   }
 
-  // Devices holding a voucher or coupon code: [{ deviceId, key }].
+  // ---------- accounts ----------
+  account(id) { return toAccount(this.#sql.account.get(id)); }
+  accountByTelegram(telegramId) { return toAccount(this.#sql.accountByTelegram.get(telegramId)); }
+  accounts() { return this.#sql.accounts.all().map(toAccount); }
+
+  // Inserts (when it has no id yet) or updates an account and its codes. Returns its id.
+  putAccount(account) {
+    const state = JSON.stringify(account.state), redeemed = JSON.stringify(account.redeemed ?? {});
+    if (account.id == null) account.id = Number(this.#sql.insertAccount.run(account.telegramId, account.name ?? null, account.username ?? null, account.createdAt, state, redeemed).lastInsertRowid);
+    else this.#sql.updateAccount.run(account.name ?? null, account.username ?? null, state, redeemed, account.id);
+    this.#index(`a:${account.id}`, account.state);
+    return account.id;
+  }
+
+  // Owners of a voucher or coupon code: [{ owner: "d:<id>" | "a:<id>", key }].
   owners(code) { return this.#sql.owners.all(code); }
+
+  // ---------- Telegram logins and sessions ----------
+  addLogin(token, deviceId, now, ttlMs) {
+    this.#sql.dropOldLogins.run(now - 24 * 3600 * 1000);
+    this.#sql.addLogin.run(hashToken(token), deviceId, now, now + ttlMs);
+  }
+  loginByToken(token) { return toLogin(this.#sql.loginByHash.get(hashToken(token))); }
+  loginById(id) { return toLogin(this.#sql.loginById.get(id)); }
+  updateLogin(login) { this.#sql.updateLogin.run(login.status, login.telegramId ?? null, login.name ?? null, login.username ?? null, login.id); }
+
+  addSession(token, accountId, deviceId, now) { this.#sql.addSession.run(hashToken(token), accountId, deviceId, now); }
+  session(token) { return token ? this.#sql.session.get(hashToken(token)) ?? null : null; }
+  dropSession(token) { this.#sql.dropSession.run(hashToken(token)); }
 
   // One-time import of the old JSON store (data/store.json), only into an empty database.
   // The file is kept, renamed to <file>.imported, never deleted. Returns the number of devices.

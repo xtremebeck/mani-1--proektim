@@ -15,7 +15,7 @@ async function load() {
   sessionStorage.setItem("uzq-admin-key", key);
   $("#login").hidden = true;
   $("#dashboard").hidden = false;
-  $("#metrics").innerHTML = [["Travellers", data.metrics.travellers], ["Adventures done", data.metrics.adventures], ["Quests done", data.metrics.quests], ["Average XP", data.metrics.averageXp],
+  $("#metrics").innerHTML = [["Travellers", data.metrics.travellers], ["Telegram accounts", data.metrics.accounts ?? 0], ["Adventures done", data.metrics.adventures], ["Quests done", data.metrics.quests], ["Average XP", data.metrics.averageXp],
     ...Object.entries(data.languages).map(([lang, count]) => [`Lang · ${lang.toUpperCase()}`, count])]
     .map(([label, value]) => `<div class="metric"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("");
   $("#cities").innerHTML = data.cities.map((city) => {
