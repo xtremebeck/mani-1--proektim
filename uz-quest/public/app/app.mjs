@@ -1,4 +1,4 @@
-import { CITIES, DETOX_MINUTES, INTERESTS, OFFERS, QUEST_TYPES, RARITY, XP } from "../shared/content.mjs";
+import { CITIES, DETOX_MINUTES, OFFERS, QUEST_TYPES, RARITY, XP } from "../shared/content.mjs";
 import {
   cityDoneCount, dailyFor, dayKey, distanceMeters, findPlace, findQuest, levelInfo, placeDone, placeProgress, placeXp,
   questRarity, questXp, storyNext, suggestions
@@ -13,6 +13,7 @@ import { checkServer, dispatch } from "./core/sync.mjs";
 import { $, all, art, errorText, esc, formatDistance, gradient, L, pad, rarityChip, t } from "./core/ui.mjs";
 import { renderCity } from "./screens/city.mjs";
 import { renderDone } from "./screens/done.mjs";
+import { renderExplore } from "./screens/explore.mjs";
 import { renderGuide } from "./screens/guide.mjs";
 import { renderPassport } from "./screens/passport.mjs";
 import { renderProfile } from "./screens/profile.mjs";
@@ -22,8 +23,6 @@ import { renderWelcome } from "./screens/welcome.mjs";
 // State used by a single screen; each moves into its screen's module in step 5.
 let pendingPhotoQuest = null;
 let detoxTimer = null;
-let map = null;
-let exploreFilter = "all";
 const timelinePicks = {};
 let hunt = null; // { questId, watchId, distance, message }
 
@@ -110,41 +109,6 @@ function renderDetox(card) {
   };
   tick();
   detoxTimer = setInterval(tick, 1000);
-}
-
-// ---------- explore ----------
-function renderExplore(screen, { id: mode }) {
-  const c = city();
-  const places = c.places.filter((p) => exploreFilter === "all" || p.interests.includes(exploreFilter));
-  const ranked = new Map(suggestions(session.state, c, { interests: session.profile.interests, position: session.position }).map((s) => [s.place.id, s]));
-  screen.innerHTML = `
-    <div class="row between"><h1 class="page-title">${t("exploreTitle", { city: esc(L(c.name)) })}</h1>
-      <div class="toggle"><button class="${mode !== "map" ? "on" : ""}" data-mode="list">${t("listView")}</button><button class="${mode === "map" ? "on" : ""}" data-mode="map">${t("mapView")}</button></div></div>
-    <div class="filters"><button class="option ${exploreFilter === "all" ? "on" : ""}" data-filter="all">${t("all")}</button>${INTERESTS.map((i) => `<button class="option ${exploreFilter === i.id ? "on" : ""}" data-filter="${i.id}">${i.icon} ${esc(L(i.name))}</button>`).join("")}</div>
-    ${mode === "map" ? `<div class="map" id="map"></div>` : `<div class="compact-list">${places.map((p) => placeCard(p, ranked.get(p.id)?.reason)).join("")}</div>`}`;
-  all("[data-mode]", screen).forEach((b) => b.addEventListener("click", () => go(b.dataset.mode === "map" ? "#/explore/map" : "#/explore")));
-  all("[data-filter]", screen).forEach((b) => b.addEventListener("click", () => { exploreFilter = b.dataset.filter; render(); }));
-  if (mode === "map") drawMap(places);
-}
-
-function drawMap(places) {
-  const box = $("#map");
-  if (!window.L) {
-    box.innerHTML = `<div class="compact-list" style="padding:12px">${places.map((p) => placeCard(p)).join("")}</div>`;
-    box.style.height = "auto";
-    return;
-  }
-  map = window.L.map(box, { zoomControl: false });
-  window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
-  window.L.control.zoom({ position: "bottomright" }).addTo(map);
-  window.L.polyline(places.map((p) => [p.lat, p.lng]), { color: "#f7c948", weight: 3, dashArray: "6 8", opacity: .8 }).addTo(map);
-  places.forEach((p) => {
-    const index = findPlace(p.id).index + 1;
-    const icon = window.L.divIcon({ className: "", html: `<div class="map-pin ${placeDone(session.state, p) ? "done" : ""}" style="background:${gradient(p)}">${placeDone(session.state, p) ? "✅" : p.emoji}<b>${index}</b></div>`, iconSize: [42, 42], iconAnchor: [21, 21] });
-    window.L.marker([p.lat, p.lng], { icon }).bindPopup(`<b>${index}. ${esc(L(p.name))}</b><br>${esc(L(p.chapter))}<br><a href="#/place/${p.id}">${t("quests", { n: p.quests.length })} →</a>`).addTo(map);
-  });
-  if (session.position) window.L.circleMarker([session.position.lat, session.position.lng], { radius: 8, color: "#fff", weight: 3, fillColor: "#ff6b35", fillOpacity: 1 }).addTo(map);
-  if (places.length) map.fitBounds(places.map((p) => [p.lat, p.lng]), { padding: [40, 40] });
 }
 
 // ---------- place (chapter) ----------
@@ -338,7 +302,6 @@ async function downscale(file, maxSide) {
 registerScreens({ welcome: renderWelcome, home: renderHome, explore: renderExplore, place: renderPlace, done: renderDone, city: renderCity, passport: renderPassport, rewards: renderRewards, coupon: renderCoupon, guide: renderGuide, profile: renderProfile });
 // Leaving a screen stops what it started.
 onBeforeRender(() => clearInterval(detoxTimer));
-onBeforeRender(() => { if (map) { map.remove(); map = null; } });
 onBeforeRender((r) => { if (hunt && !(r.name === "place" && findQuest(hunt.questId)?.place.id === r.id)) stopHunt(); });
 
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
