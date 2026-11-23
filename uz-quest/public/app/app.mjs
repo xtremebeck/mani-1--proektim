@@ -4,7 +4,6 @@ import { toast } from "./core/feedback.mjs";
 import { locate } from "./core/location.mjs";
 import { go, registerScreens, render, route } from "./core/router.mjs";
 import { saveProfile, session, testMode } from "./core/session.mjs";
-import { photos } from "./core/storage.mjs";
 import { checkServer, dispatch } from "./core/sync.mjs";
 import { $, all, errorText, esc, gradient, L, rarityChip, t } from "./core/ui.mjs";
 import { renderCity } from "./screens/city.mjs";
@@ -14,6 +13,7 @@ import { renderGuide } from "./screens/guide.mjs";
 import { renderHome } from "./screens/home.mjs";
 import { activeHunt, startHunt, stopHunt } from "./screens/hunt.mjs";
 import { renderPassport } from "./screens/passport.mjs";
+import { bindPhotoInput, loadQuestPhotos, takePhoto } from "./screens/photos.mjs";
 import { renderProfile } from "./screens/profile.mjs";
 import { renderCoupon, renderRewards } from "./screens/rewards.mjs";
 import { renderWelcome } from "./screens/welcome.mjs";
@@ -145,48 +145,6 @@ function completeQuest(place, fields) {
   if (result.placeCompleted) { go(`#/done/${place.id}`); return result; }
   rerenderPlace(fields.questId, "pop");
   return result;
-}
-
-// ---------- photos ----------
-let pendingPhoto = null; // { placeId, questId, onTaken }
-
-// Opens the camera for a photo quest; onTaken runs once the photo is saved on the device.
-function takePhoto(placeId, questId, onTaken) {
-  pendingPhoto = { placeId, questId, onTaken };
-  $("#photo-input").click();
-}
-
-// The hidden file input is shared by every photo quest.
-function bindPhotoInput() {
-  $("#photo-input").addEventListener("change", (e) => { handlePhoto(e.target.files[0]); e.target.value = ""; });
-}
-
-async function loadQuestPhotos(place) {
-  const shots = await photos.all();
-  for (const shot of shots) {
-    const img = document.querySelector(`[data-thumb="${shot.questId}"]`);
-    if (img && place.quests.some((q) => q.id === shot.questId)) { img.src = shot.dataUrl; img.hidden = false; }
-  }
-}
-
-async function handlePhoto(file) {
-  const pending = pendingPhoto;
-  pendingPhoto = null;
-  if (!file || !pending) return;
-  const dataUrl = await downscale(file, 900);
-  await photos.put({ questId: pending.questId, placeId: pending.placeId, dataUrl, at: Date.now() });
-  pending.onTaken();
-}
-
-async function downscale(file, maxSide) {
-  const bitmap = await createImageBitmap(file).catch(() => null);
-  if (!bitmap) return new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(file); });
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.74);
 }
 
 // ---------- boot ----------
