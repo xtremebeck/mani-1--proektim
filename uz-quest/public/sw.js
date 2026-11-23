@@ -1,9 +1,9 @@
 // Offline support: app shell is precached; CDN libraries are cached on first use.
 // Bump CACHE whenever shipped files change.
-const CACHE = "uzquest-v4";
+const CACHE = "uzquest-v5";
 const SHELL = [
   "./", "index.html", "landing.css", "landing.mjs",
-  "app/", "app/index.html", "app/app.css", "app/app.mjs", "app/i18n.mjs", "app/local-guide.mjs",
+  "app/", "app/index.html", "app/app.css", "app/app.mjs", "app/i18n.mjs", "app/local-guide.mjs", "app/core/storage.mjs", "app/core/ui.mjs",
   "shared/content.mjs", "shared/engine.mjs", "manifest.webmanifest",
   "assets/app-icon.svg", "assets/tashkent-hero.svg", "assets/registan-hero.jpg"
 ];

@@ -6,42 +6,8 @@ import {
 } from "../shared/engine.mjs";
 import { translate } from "./i18n.mjs";
 import { localGuideReply } from "./local-guide.mjs";
-
-// ---------- storage ----------
-const KEYS = { state: "uzq3-state", profile: "uzq2-profile", outbox: "uzq3-outbox", device: "uzq2-device", detox: "uzq2-detox", log: "uzq3-log" };
-const store = {
-  get(key, fallback) { try { const raw = localStorage.getItem(key); return raw == null ? fallback : JSON.parse(raw); } catch { return fallback; } },
-  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage full or blocked */ } },
-  remove(key) { try { localStorage.removeItem(key); } catch { /* ignore */ } }
-};
-
-const photos = (() => {
-  let dbPromise = null;
-  const open = () => dbPromise ??= new Promise((resolve, reject) => {
-    const request = indexedDB.open("uzquest-photos", 1);
-    request.onupgradeneeded = () => request.result.createObjectStore("photos", { keyPath: "questId" });
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-  const run = async (mode, operation) => {
-    const db = await open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction("photos", mode);
-      const request = operation(tx.objectStore("photos"));
-      tx.oncomplete = () => resolve(request?.result);
-      tx.onerror = () => reject(tx.error);
-    });
-  };
-  return {
-    put: (record) => run("readwrite", (s) => s.put(record)).catch(() => undefined),
-    all: () => run("readonly", (s) => s.getAll()).catch(() => []),
-    clear: () => run("readwrite", (s) => s.clear()).catch(() => undefined)
-  };
-})();
-
-const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-  const r = (Math.random() * 16) | 0; return (c === "x" ? r : (r & 3) | 8).toString(16);
-}));
+import { KEYS, photos, store, uuid } from "./core/storage.mjs";
+import { $, all, art, esc, formatDistance, gradient, pad } from "./core/ui.mjs";
 
 // ---------- state ----------
 const guessLang = () => { const nav = (navigator.language || "en").toLowerCase(); return nav.startsWith("ru") ? "ru" : nav.startsWith("uz") ? "uz" : "en"; };
@@ -71,18 +37,11 @@ let exploreFilter = "all";
 const timelinePicks = {};
 let hunt = null; // { questId, watchId, distance, message }
 
-const $ = (selector, root = document) => root.querySelector(selector);
-const all = (selector, root = document) => [...root.querySelectorAll(selector)];
 const t = (key, vars) => translate(profile.lang, key, vars);
 const L = (value) => value?.[profile.lang] ?? value?.en ?? "";
 const city = () => findCity(profile.cityId) ?? CITIES[0];
-const esc = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const pad = (n) => String(n).padStart(2, "0");
-const formatDistance = (m) => (m < 1000 ? `${Math.round(m / 5) * 5} m` : `${(m / 1000).toFixed(1)} km`);
 const formatDate = (ms) => new Date(ms).toLocaleDateString(profile.lang === "uz" ? "uz-UZ" : profile.lang);
 const saveProfile = () => store.set(KEYS.profile, profile);
-const gradient = (place) => `linear-gradient(135deg,${place.colors[0]},${place.colors[1]})`;
-const art = (place, cls = "art") => `<div class="${cls}" style="background:${gradient(place)}">${place.emoji}</div>`;
 const interestName = (id) => L(INTERESTS.find((item) => item.id === id)?.name);
 const apiUrl = (path) => new URL(`../api/v1/${path}`, location.href).href;
 const rarityChip = (rarity) => `<span class="rarity" style="--c:${RARITY[rarity].color}">${esc(L(RARITY[rarity].name))}</span>`;
