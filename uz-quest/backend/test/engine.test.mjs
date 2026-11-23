@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { CITIES, OFFERS, XP } from "../../public/shared/content.mjs";
 import {
   applyEvent, collectedCards, dailyFor, dayKey, earnedBadges, earnedGiftStamps, emptyState, levelInfo,
@@ -8,6 +9,8 @@ import {
 
 const samarkand = CITIES.find((city) => city.id === "samarkand");
 const tashkent = CITIES.find((city) => city.id === "tashkent");
+// Public demo words; production words live only on the server.
+const DEV_CODES = JSON.parse(readFileSync(new URL("../meet-codes.dev.json", import.meta.url), "utf8"));
 let clock = Date.UTC(2026, 8, 19, 5); // 10:00 in Uzbekistan
 let ids = 0;
 
@@ -16,7 +19,7 @@ function solve(quest, extra = {}) {
   const event = { id: `evt-${++ids}`, type: "quest", questId: quest.id, at: clock++ };
   if (quest.type === "quiz") event.answer = quest.answer;
   if (quest.type === "riddle") event.text = quest.answers[0];
-  if (quest.type === "meet") event.code = quest.code;
+  if (quest.type === "meet") event.code = DEV_CODES[quest.id];
   if (quest.type === "timeline") event.order = quest.order;
   if (quest.type === "photo") event.hasPhoto = true;
   if (quest.type === "hunt") Object.assign(event, { lat: quest.lat, lng: quest.lng, accuracy: 10 });
@@ -32,7 +35,7 @@ test("content is complete: unique ids, valid answers, three languages", () => {
     for (const lang of ["uz", "en", "ru"]) assert.ok(q.title[lang] && q.prompt[lang], `${q.id} ${lang}`);
     if (q.type === "quiz") assert.ok(q.options[q.answer], q.id);
     if (q.type === "timeline") assert.deepEqual([...q.order].sort(), q.items.map((_, i) => i), q.id);
-    if (q.type === "meet") assert.ok(q.code && q.reveal.en && q.person.name.en, q.id);
+    if (q.type === "meet") assert.ok(DEV_CODES[q.id] && q.reveal.en && q.person.name.en, q.id);
     if (q.type === "hunt") assert.ok(q.radius > 0 && Number.isFinite(q.lat), q.id);
   }
   for (const c of CITIES) for (const p of c.places) assert.ok(p.chapter.en && p.clue.en && p.card.name.en, p.id);
@@ -47,10 +50,26 @@ test("answers are forgiving about case, apostrophes and punctuation", () => {
   assert.equal(applyEvent(emptyState(), solve(riddle, { text: "red" })).error, "WRONG_ANSWER");
 });
 
-test("meet quests need the secret word from the local", () => {
+test("meet quests: the server checks the secret word, the phone only accepts it for now", () => {
   const meet = questOfType("meet");
-  assert.equal(applyEvent(emptyState(), solve(meet, { code: "wrong" })).error, "WRONG_CODE");
-  assert.equal(applyEvent(emptyState(), solve(meet, { code: meet.code.toUpperCase() })).ok, true);
+  const meetCodes = DEV_CODES;
+  assert.equal(applyEvent(emptyState(), solve(meet, { code: "wrong" }), { meetCodes }).error, "WRONG_CODE");
+  assert.equal(applyEvent(emptyState(), solve(meet, { code: DEV_CODES[meet.id].toUpperCase() }), { meetCodes }).ok, true);
+  // On the phone there are no codes: any word counts until the server decides.
+  assert.equal(applyEvent(emptyState(), solve(meet, { code: "anything" })).ok, true);
+  assert.equal(applyEvent(emptyState(), solve(meet, { code: " ' " })).error, "WRONG_CODE");
+  // A quest without a configured word is never accepted, not even with an empty answer.
+  assert.equal(applyEvent(emptyState(), solve(meet, { code: "" }), { meetCodes: {} }).error, "WRONG_CODE");
+});
+
+test("secret words never ship in the shared content", () => {
+  const meets = CITIES.flatMap((c) => c.places.flatMap((p) => p.quests)).filter((q) => q.type === "meet");
+  assert.equal(meets.length, Object.keys(DEV_CODES).length);
+  for (const quest of meets) {
+    assert.equal("code" in quest, false, `${quest.id} still has a code`);
+    // The letter after the meeting must not open by shouting the word back.
+    for (const text of Object.values(quest.reveal)) assert.doesNotMatch(text, new RegExp(`^["«]${DEV_CODES[quest.id]}`, "i"));
+  }
 });
 
 test("timeline must be in the right order", () => {

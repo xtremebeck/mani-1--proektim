@@ -4,7 +4,7 @@ import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { CITIES } from "../public/shared/content.mjs";
 import { dailyFor, dayKey } from "../public/shared/engine.mjs";
-import { start } from "../backend/test/support/server.mjs";
+import { DEV_CODES_FILE, start } from "../backend/test/support/server.mjs";
 import { launch, localState, newContext, onboard, openPage, outboxSize, playPlace, readStore, toastTexts, waitSynced } from "./support.mjs";
 
 const tashkent = CITIES.find((city) => city.id === "tashkent");
@@ -146,20 +146,21 @@ describe("dev server: a traveller's first session", () => {
 describe("production server: test shortcuts are locked", () => {
   let server, context, page, errors;
   before(async () => {
-    server = await start({ NODE_ENV: "production", ADMIN_KEY: "e2e-production-key" });
+    server = await start({ NODE_ENV: "production", ADMIN_KEY: "e2e-production-key", MEET_CODES_FILE: DEV_CODES_FILE });
     context = await newContext(browser);
     ({ page, errors } = await openPage(context));
     await onboard(page, server.base, { cityId: tashkent.id });
   });
   after(async () => { await context?.close(); await server?.stop(); });
 
-  test("Skip photo and the secret-word hint are hidden", async () => {
+  test("no test shortcut is offered for photo or meet quests", async () => {
     await page.goto(`${server.base}/app/#/place/${hazratiImam.id}`);
     await page.locator("[data-start]").click();
     assert.equal(await page.locator("[data-skip]").count(), 0);
     await page.goto(`${server.base}/app/#/place/${chorsu.id}`);
     await page.locator("[data-start]").click();
-    assert.equal(await page.locator(".test-hint").count(), 0);
+    await page.waitForSelector("[data-meet]");
+    assert.equal(await page.locator("[data-skip]").count(), 0);
   });
 
   test("the test-mode toggle is disabled and says why", async () => {

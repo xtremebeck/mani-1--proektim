@@ -128,6 +128,7 @@ The app detects the server through `GET /api/v1/health` and degrades on its own 
 |---|---|---|
 | `GET /api/v1/health` | — | Liveness, whether Claude is available, whether test events are allowed |
 | `POST /api/v1/sync` | `deviceId` | Upload events; returns accepted and rejected ids plus the server state |
+| `POST /api/v1/meet/check` | — | Is this the secret word of a meet quest? Records nothing; rate-limited with sync's wrong guesses |
 | `POST /api/v1/guide` | — | Ask Hamroh (Claude); returns 503 if not configured, 502 if it failed |
 | `GET /api/v1/admin/overview` | `x-admin-key` | Metrics, funnels per place, offers, vouchers, recent travellers |
 | `POST /api/v1/admin/redeem` | `x-admin-key` | Redeem a city voucher or partner coupon once |
@@ -153,11 +154,13 @@ Everything else is served as a static file from `public/`, with protection again
 
 ## Trust and security
 
-Content and rules ship to the browser, so **nothing on the client is secret**: quiz answers and secret words can be read from the bundle. The server's job is to limit what a cheating client can gain, not to make cheating impossible.
+Content and rules ship to the browser, so everything in them can be read from the bundle: quiz, riddle and timeline answers, and the treasure-hunt coordinates. The one exception is the **secret words of meet-a-local quests**. They are the strongest proof of a visit, because a partner's staff member says them on site, so they are kept on the server only. For the rest, the server's job is to limit what a cheating client can gain, not to make cheating impossible.
 
 | Control | Where |
 |---|---|
 | Every event is re-validated with the shared engine | `sync()` |
+| Secret words exist only on the server (`MEET_CODES_FILE`); the phone accepts a word provisionally and the server confirms or rejects it | `server.mjs`, `checkQuest()` |
+| 10 wrong secret words per address per minute, shared by `/meet/check` and sync; beyond that words are not judged at all (`TRY_LATER`), so a right guess cannot leak | `server.mjs` |
 | Daily and detox claims older than 48h are rejected (`CLAIM_EXPIRED`) | `engine.mjs`, enforced when the server passes `now` |
 | Timestamps from the future are clamped to the server time | `sync()` |
 | Test shortcuts (simulated GPS, skipped photo) are off when `NODE_ENV=production` unless `ALLOW_TEST_EVENTS=true` | `server.mjs`; the app hides them via `/health` |
@@ -170,9 +173,8 @@ Content and rules ship to the browser, so **nothing on the client is secret**: q
 ## Testing
 
 - `backend/test/engine.test.mjs` covers the rules as pure functions: content integrity, every quest type, XP, coupons, story order, time-of-day stamps and the claim window.
-- `backend/test/server.test.mjs` starts real server processes on temporary data files and covers crashes, status codes, rate limits, production settings, event cleaning and redemption.
-
-- `e2e/*.test.mjs` play the web app in headless Chromium against a real server: every screen, production settings, offline use and a treasure hunt driven by live GPS. Any JavaScript error in the page fails the run.
+- `backend/test/server.test.mjs` starts real server processes on temporary data files and covers crashes, status codes, rate limits, production settings, secret words and guessing limits, event cleaning and redemption.
+- `e2e/*.test.mjs` play the web app in headless Chromium against a real server: every screen, production settings, offline use, secret words checked online and offline, and a treasure hunt driven by live GPS. Any JavaScript error in the page fails the run.
 
 Run the first two with `npm test` and the browser tests with `npm run test:e2e`. CI runs both on every pull request and before each GitHub Pages deploy.
 
@@ -181,7 +183,8 @@ Run the first two with `npm test` and the browser tests with `npm run test:e2e`.
 | Limit | Impact | Direction |
 |---|---|---|
 | JSON file store | Every sync rewrites the whole file; one process only | Move to PostgreSQL or SQLite; the `JsonStore` interface (`snapshot`, `mutate`) is the seam |
-| Answers ship to the client | Quests can be completed without visiting | Check high-value quests (meet, hunt) on the server; accept losing offline completion for those |
+| Quiz, riddle and timeline answers ship to the client | They can be read instead of found on site | Acceptable: they are trivia, not proof of a visit |
+| Treasure-hunt GPS and photo quests are trusted | Coordinates can be spoofed and `hasPhoto` is just a flag | The server cannot prove either. Rewards that matter should depend on meet-a-local quests, which a partner confirms on site |
 | Identity is a random `deviceId` | Progress is lost with the phone or browser data | Add accounts (phone number or Telegram) and link devices |
 | In-memory rate limits | Reset on restart; behind a proxy all clients share one IP | Rate-limit at the reverse proxy |
 | String-built UI (`innerHTML`) | Manual event wiring; escaping must not be forgotten | Revisit when moving to native apps |

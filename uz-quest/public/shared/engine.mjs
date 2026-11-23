@@ -96,7 +96,8 @@ export const CLAIM_WINDOW_MS = 48 * 3600 * 1000;
 // Applies one event. Returns { ok, state, gained, placeCompleted, cityCompleted, coupons } or { ok: false, error }.
 // allowTest: accept test-mode shortcuts (simulated GPS arrival, photo skipped). Turn off for real rewards.
 // now: when given (the server), daily/detox claims older than CLAIM_WINDOW_MS are rejected.
-export function applyEvent(state, event, { allowTest = true, now = null } = {}) {
+// meetCodes: { [questId]: secret word }. Only the server has them; see checkQuest.
+export function applyEvent(state, event, { allowTest = true, now = null, meetCodes = null } = {}) {
   const at = Number(event?.at);
   if (!Number.isFinite(at)) return fail("BAD_EVENT");
   if (event.test && !allowTest) return fail("TEST_DISABLED");
@@ -104,7 +105,7 @@ export function applyEvent(state, event, { allowTest = true, now = null } = {}) 
   let result;
   switch (event.type) {
     case "start": result = applyStart(state, event, at); break;
-    case "quest": result = applyQuest(state, event, at); break;
+    case "quest": result = applyQuest(state, event, at, meetCodes); break;
     case "daily": result = applyDaily(state, event, at); break;
     case "detox": result = applyDetox(state, event, at); break;
     case "reward": result = applyReward(state, event, at); break;
@@ -124,11 +125,18 @@ function applyStart(state, event, at) {
   return { ok: true, state: next, gained: 0 };
 }
 
-function checkQuest(quest, event) {
+function checkQuest(quest, event, meetCodes) {
   switch (quest.type) {
     case "quiz": return Number(event.answer) === quest.answer ? null : "WRONG_ANSWER";
     case "riddle": return quest.answers.some((a) => normalizeAnswer(a) === normalizeAnswer(event.text)) ? null : "WRONG_ANSWER";
-    case "meet": return normalizeAnswer(event.code) === normalizeAnswer(quest.code) ? null : "WRONG_CODE";
+    case "meet": {
+      if (event.test) return null;
+      // The secret word is never shipped to the phone. Without it, any word is accepted for now and the
+      // server, which checks it against meetCodes, has the final say when the event syncs.
+      if (!meetCodes) return normalizeAnswer(event.code) ? null : "WRONG_CODE";
+      const secret = normalizeAnswer(meetCodes[quest.id]);
+      return secret && normalizeAnswer(event.code) === secret ? null : "WRONG_CODE";
+    }
     case "timeline": return Array.isArray(event.order) && event.order.length === quest.order.length && event.order.every((v, i) => Number(v) === quest.order[i]) ? null : "WRONG_ORDER";
     case "photo": return event.hasPhoto || event.test ? null : "PHOTO_REQUIRED";
     case "hunt": {
@@ -142,12 +150,12 @@ function checkQuest(quest, event) {
   }
 }
 
-function applyQuest(state, event, at) {
+function applyQuest(state, event, at, meetCodes) {
   const found = findQuest(event.questId);
   if (!found) return fail("QUEST_NOT_FOUND");
   const { city, place, quest } = found;
   if (state.quests[quest.id]) return fail("DUPLICATE");
-  const problem = checkQuest(quest, event);
+  const problem = checkQuest(quest, event, meetCodes);
   if (problem) return fail(problem);
   const next = structuredClone(state);
   next.started[place.id] ??= at;
