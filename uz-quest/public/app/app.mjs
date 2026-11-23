@@ -12,24 +12,29 @@ import { $, all, art, esc, formatDistance, gradient, pad } from "./core/ui.mjs";
 // ---------- state ----------
 const guessLang = () => { const nav = (navigator.language || "en").toLowerCase(); return nav.startsWith("ru") ? "ru" : nav.startsWith("uz") ? "uz" : "en"; };
 const AVATARS = ["🧭", "🐫", "🦅", "🧕", "🧔", "👩‍🚀", "🦊", "🐯"];
-let profile = store.get(KEYS.profile, null) ?? { name: "", avatar: AVATARS[0], lang: guessLang(), cityId: "tashkent", interests: [], done: false };
-profile.testMode ??= true; // MVP default: lets people try GPS hunts and photo spots from home
-let state = store.get(KEYS.state, null);
-if (!state || state.v !== 3) state = emptyState();
+// State shared across the app. Code replaces its fields (session.state = …) instead of
+// reassigning module-level variables, so it can move into modules that import `session`.
+const session = {
+  profile: null, state: null, log: null, deviceId: null,
+  server: { online: false, guide: false, testEvents: true },
+  chat: [],
+  position: null,
+  lastCompletion: null
+};
+session.profile =store.get(KEYS.profile, null) ?? { name: "", avatar: AVATARS[0], lang: guessLang(), cityId: "tashkent", interests: [], done: false };
+session.profile.testMode ??= true; // MVP default: lets people try GPS hunts and photo spots from home
+session.state = store.get(KEYS.state, null);
+if (!session.state || session.state.v !== 3) session.state = emptyState();
 // Every accepted event, so progress the server rejects can be replayed away.
 // Older installs have progress but no log; they keep their state as is (log = null).
-let log = store.get(KEYS.log, null);
-if (!log && !state.xp && !Object.keys(state.started).length) { log = []; store.set(KEYS.log, log); }
-let deviceId = store.get(KEYS.device, null);
-if (!deviceId) { deviceId = uuid(); store.set(KEYS.device, deviceId); }
+session.log = store.get(KEYS.log, null);
+if (!session.log && !session.state.xp && !Object.keys(session.state.started).length) { session.log = []; store.set(KEYS.log, session.log); }
+session.deviceId = store.get(KEYS.device, null);
+if (!session.deviceId) { session.deviceId = uuid(); store.set(KEYS.device, session.deviceId); }
 
-const server = { online: false, guide: false, testEvents: true };
 // Test shortcuts follow the server's policy when it is reachable; the static build has no server.
-const testAllowed = () => !server.online || server.testEvents;
-const testMode = () => profile.testMode && testAllowed();
-const chat = [];
-let position = null;
-let lastCompletion = null;
+const testAllowed = () => !session.server.online || session.server.testEvents;
+const testMode = () => session.profile.testMode && testAllowed();
 let pendingPhotoQuest = null;
 let detoxTimer = null;
 let map = null;
@@ -37,35 +42,35 @@ let exploreFilter = "all";
 const timelinePicks = {};
 let hunt = null; // { questId, watchId, distance, message }
 
-const t = (key, vars) => translate(profile.lang, key, vars);
-const L = (value) => value?.[profile.lang] ?? value?.en ?? "";
-const city = () => findCity(profile.cityId) ?? CITIES[0];
-const formatDate = (ms) => new Date(ms).toLocaleDateString(profile.lang === "uz" ? "uz-UZ" : profile.lang);
-const saveProfile = () => store.set(KEYS.profile, profile);
+const t = (key, vars) => translate(session.profile.lang, key, vars);
+const L = (value) => value?.[session.profile.lang] ?? value?.en ?? "";
+const city = () => findCity(session.profile.cityId) ?? CITIES[0];
+const formatDate = (ms) => new Date(ms).toLocaleDateString(session.profile.lang === "uz" ? "uz-UZ" : session.profile.lang);
+const saveProfile = () => store.set(KEYS.profile, session.profile);
 const interestName = (id) => L(INTERESTS.find((item) => item.id === id)?.name);
 const apiUrl = (path) => new URL(`../api/v1/${path}`, location.href).href;
 const rarityChip = (rarity) => `<span class="rarity" style="--c:${RARITY[rarity].color}">${esc(L(RARITY[rarity].name))}</span>`;
-const errorText = (code) => (translate(profile.lang, `err_${code}`) !== `err_${code}` ? t(`err_${code}`) : t("err_generic"));
+const errorText = (code) => (translate(session.profile.lang, `err_${code}`) !== `err_${code}` ? t(`err_${code}`) : t("err_generic"));
 
 // ---------- events & sync ----------
 function dispatch(partial) {
   const event = { id: uuid(), at: Date.now(), ...partial };
-  const before = state;
+  const before = session.state;
   if (event.test && !testAllowed()) return { ok: false, error: "TEST_DISABLED" };
-  const result = applyEvent(state, event);
+  const result = applyEvent(session.state, event);
   if (!result.ok) return result;
-  state = result.state;
-  store.set(KEYS.state, state);
-  if (log) { log.push(event); store.set(KEYS.log, log); }
+  session.state = result.state;
+  store.set(KEYS.state, session.state);
+  if (session.log) { session.log.push(event); store.set(KEYS.log, session.log); }
   store.set(KEYS.outbox, [...store.get(KEYS.outbox, []), event]);
-  const diff = (fn) => { const old = new Set(fn(before)); return fn(state).filter((id) => !old.has(id)); };
+  const diff = (fn) => { const old = new Set(fn(before)); return fn(session.state).filter((id) => !old.has(id)); };
   const newBadges = diff(earnedBadges), newGifts = diff(earnedGiftStamps);
-  const oldLevel = levelInfo(before.xp).level, newLevel = levelInfo(state.xp);
+  const oldLevel = levelInfo(before.xp).level, newLevel = levelInfo(session.state.xp);
   const leveledUp = newLevel.level > oldLevel;
   if (result.placeCompleted) {
     // The chapter-complete screen celebrates everything at once, so skip toasts.
     const placeId = findQuest(event.questId)?.place.id;
-    lastCompletion = { placeId, newBadges, newGifts, coupons: result.coupons, levelUp: leveledUp ? newLevel : null, cityCompleted: result.cityCompleted };
+    session.lastCompletion = { placeId, newBadges, newGifts, coupons: result.coupons, levelUp: leveledUp ? newLevel : null, cityCompleted: result.cityCompleted };
   } else {
     if (result.gained) toast(t("gained", { n: result.gained }), "xp");
     newBadges.forEach((id) => toast(t("badgeNew", { name: L(BADGES.find((b) => b.id === id).name) }), "gold"));
@@ -87,22 +92,22 @@ function flush() {
 }
 
 async function syncOutbox() {
-  if (!server.online || !navigator.onLine) return;
+  if (!session.server.online || !navigator.onLine) return;
   const outbox = store.get(KEYS.outbox, []);
   if (!outbox.length) return;
   try {
-    const response = await fetch(apiUrl("sync"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId, lang: profile.lang, events: outbox }) });
+    const response = await fetch(apiUrl("sync"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId: session.deviceId, lang: session.profile.lang, events: outbox }) });
     if (!response.ok) return;
     const data = await response.json();
     const settled = new Set([...data.accepted, ...data.rejected.map((item) => item.id)]);
     store.set(KEYS.outbox, store.get(KEYS.outbox, []).filter((event) => !settled.has(event.id)));
     // A DUPLICATE means the server already has that progress; anything else never counted there.
     const dropped = new Set(data.rejected.filter((item) => item.error !== "DUPLICATE").map((item) => item.id));
-    if (dropped.size && log) {
-      log = log.filter((event) => !dropped.has(event.id));
-      store.set(KEYS.log, log);
-      state = replay(log);
-      store.set(KEYS.state, state);
+    if (dropped.size && session.log) {
+      session.log = session.log.filter((event) => !dropped.has(event.id));
+      store.set(KEYS.log, session.log);
+      session.state = replay(session.log);
+      store.set(KEYS.state, session.state);
       toast(t("syncRejected"), "error");
       render();
     }
@@ -117,11 +122,11 @@ async function checkServer() {
     const response = await fetch(apiUrl("health"), { cache: "no-store", signal: controller.signal });
     clearTimeout(timer);
     const data = response.ok ? await response.json() : null;
-    server.online = data?.service === "uzquest-api";
-    server.guide = Boolean(data?.guide);
-    server.testEvents = data?.testEvents !== false;
-  } catch { server.online = false; server.guide = false; }
-  if (testAllowed() !== wasAllowed && profile.done) render();
+    session.server.online = data?.service === "uzquest-api";
+    session.server.guide = Boolean(data?.guide);
+    session.server.testEvents = data?.testEvents !== false;
+  } catch { session.server.online = false; session.server.guide = false; }
+  if (testAllowed() !== wasAllowed && session.profile.done) render();
   flush();
 }
 
@@ -132,7 +137,7 @@ async function locate(ask = false) {
     if (permission?.state !== "granted") return;
   }
   navigator.geolocation.getCurrentPosition((pos) => {
-    position = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    session.position = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     if (["home", "explore"].includes(route().name)) render();
   }, () => undefined, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
 }
@@ -174,7 +179,7 @@ function confetti() {
 // ---------- router ----------
 function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-  if (!profile.done) return { name: "welcome", step: Math.min(3, Math.max(0, Math.trunc(Number(parts[0] === "welcome" ? parts[1] : 0)) || 0)) };
+  if (!session.profile.done) return { name: "welcome", step: Math.min(3, Math.max(0, Math.trunc(Number(parts[0] === "welcome" ? parts[1] : 0)) || 0)) };
   const [name = "home", id] = parts;
   return { name, id };
 }
@@ -185,7 +190,7 @@ function render() {
   if (map) { map.remove(); map = null; }
   const r = route();
   if (hunt && !(r.name === "place" && findQuest(hunt.questId)?.place.id === r.id)) stopHunt();
-  document.documentElement.lang = profile.lang;
+  document.documentElement.lang = session.profile.lang;
   all("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); });
   const screens = { welcome: renderWelcome, home: renderHome, explore: renderExplore, place: renderPlace, done: renderDone, city: renderCity, passport: renderPassport, rewards: renderRewards, coupon: renderCoupon, guide: renderGuide, profile: renderProfile };
   const screen = $("#screen");
@@ -207,29 +212,29 @@ function renderWelcome(screen, { step }) {
   let body = "";
   if (step === 0) {
     body = `<div class="hero-emblem">🧭</div><h1>${t("obWelcomeTitle")}</h1><p class="lead">${t("obWelcomeText")}</p>
-      <div class="lang-row">${[["uz", "O'zbekcha"], ["en", "English"], ["ru", "Русский"]].map(([code, name]) => `<button class="option ${profile.lang === code ? "on" : ""}" data-lang="${code}">${name}</button>`).join("")}</div>${nav(true)}`;
+      <div class="lang-row">${[["uz", "O'zbekcha"], ["en", "English"], ["ru", "Русский"]].map(([code, name]) => `<button class="option ${session.profile.lang === code ? "on" : ""}" data-lang="${code}">${name}</button>`).join("")}</div>${nav(true)}`;
   } else if (step === 1) {
-    body = `<h1>${t("obName")}</h1><input class="text-input" id="name" maxlength="24" autocomplete="nickname" placeholder="${t("obNamePlaceholder")}" value="${esc(profile.name)}" />
-      <p class="lead">${t("obAvatar")}</p><div class="avatars">${AVATARS.map((a) => `<button class="option ${profile.avatar === a ? "on" : ""}" data-avatar="${a}">${a}</button>`).join("")}</div>${nav(true)}`;
+    body = `<h1>${t("obName")}</h1><input class="text-input" id="name" maxlength="24" autocomplete="nickname" placeholder="${t("obNamePlaceholder")}" value="${esc(session.profile.name)}" />
+      <p class="lead">${t("obAvatar")}</p><div class="avatars">${AVATARS.map((a) => `<button class="option ${session.profile.avatar === a ? "on" : ""}" data-avatar="${a}">${a}</button>`).join("")}</div>${nav(true)}`;
   } else if (step === 2) {
-    body = `<h1>${t("obCity")}</h1><div class="city-pick">${CITIES.map((c) => `<button class="city-card ${profile.cityId === c.id ? "on" : ""}" data-city="${c.id}"><img src="${c.image}" alt="" /><span><strong>${c.story.icon} ${esc(L(c.name))}</strong><small>${esc(L(c.story.title))} · ${c.places.length} ${t("statPlaces").toLowerCase()}</small></span></button>`).join("")}</div>${nav(true)}`;
+    body = `<h1>${t("obCity")}</h1><div class="city-pick">${CITIES.map((c) => `<button class="city-card ${session.profile.cityId === c.id ? "on" : ""}" data-city="${c.id}"><img src="${c.image}" alt="" /><span><strong>${c.story.icon} ${esc(L(c.name))}</strong><small>${esc(L(c.story.title))} · ${c.places.length} ${t("statPlaces").toLowerCase()}</small></span></button>`).join("")}</div>${nav(true)}`;
   } else {
     body = `<h1>${t("obInterests")}</h1><p class="lead">${t("obInterestsHint")}</p>
-      <div class="interest-grid">${INTERESTS.map((i) => `<button class="option ${profile.interests.includes(i.id) ? "on" : ""}" data-interest="${i.id}"><span>${i.icon}</span>${esc(L(i.name))}</button>`).join("")}</div>${nav(profile.interests.length > 0, t("letsGo"))}`;
+      <div class="interest-grid">${INTERESTS.map((i) => `<button class="option ${session.profile.interests.includes(i.id) ? "on" : ""}" data-interest="${i.id}"><span>${i.icon}</span>${esc(L(i.name))}</button>`).join("")}</div>${nav(session.profile.interests.length > 0, t("letsGo"))}`;
   }
   screen.innerHTML = `<section class="onboard">${steps}${body}</section>`;
-  all("[data-lang]", screen).forEach((b) => b.addEventListener("click", () => { profile.lang = b.dataset.lang; saveProfile(); render(); }));
-  all("[data-avatar]", screen).forEach((b) => b.addEventListener("click", () => { profile.avatar = b.dataset.avatar; profile.name = $("#name").value; saveProfile(); render(); }));
-  all("[data-city]", screen).forEach((b) => b.addEventListener("click", () => { profile.cityId = b.dataset.city; saveProfile(); render(); }));
+  all("[data-lang]", screen).forEach((b) => b.addEventListener("click", () => { session.profile.lang = b.dataset.lang; saveProfile(); render(); }));
+  all("[data-avatar]", screen).forEach((b) => b.addEventListener("click", () => { session.profile.avatar = b.dataset.avatar; session.profile.name = $("#name").value; saveProfile(); render(); }));
+  all("[data-city]", screen).forEach((b) => b.addEventListener("click", () => { session.profile.cityId = b.dataset.city; saveProfile(); render(); }));
   all("[data-interest]", screen).forEach((b) => b.addEventListener("click", () => {
     const id = b.dataset.interest;
-    profile.interests = profile.interests.includes(id) ? profile.interests.filter((x) => x !== id) : [...profile.interests, id];
+    session.profile.interests = session.profile.interests.includes(id) ? session.profile.interests.filter((x) => x !== id) : [...session.profile.interests, id];
     saveProfile(); render();
   }));
   $("[data-back]", screen)?.addEventListener("click", () => go(`#/welcome/${step - 1}`));
   $("[data-next]", screen)?.addEventListener("click", () => {
-    if (step === 1) profile.name = $("#name").value.trim();
-    if (step === 3) { profile.done = true; saveProfile(); go("#/"); return; }
+    if (step === 1) session.profile.name = $("#name").value.trim();
+    if (step === 3) { session.profile.done = true; saveProfile(); go("#/"); return; }
     saveProfile();
     go(`#/welcome/${step + 1}`);
   });
@@ -237,8 +242,8 @@ function renderWelcome(screen, { step }) {
 
 // ---------- shared pieces ----------
 function placeCard(place, reason) {
-  const done = placeDone(state, place), progress = placeProgress(state, place);
-  const started = state.started[place.id] && !done;
+  const done = placeDone(session.state, place), progress = placeProgress(session.state, place);
+  const started = session.state.started[place.id] && !done;
   const found = findPlace(place.id);
   const status = done ? `<span class="chip green status">✓ ${t("done")}</span>` : started ? `<span class="chip gold status">${t("inProgress", { done: progress, total: place.quests.length })}</span>` : "";
   const why = reason ? `<span class="chip reason">${esc(reasonText(reason))}</span>` : "";
@@ -257,9 +262,9 @@ function reasonText(reason) {
 }
 
 function storyCard(c) {
-  const next = storyNext(state, c);
-  const done = cityDoneCount(state, c), total = c.places.length;
-  const pieces = c.places.map((p) => `<i class="${placeDone(state, p) ? "on" : ""}" title="${esc(L(p.chapter))}">${placeDone(state, p) ? c.story.icon : ""}</i>`).join("");
+  const next = storyNext(session.state, c);
+  const done = cityDoneCount(session.state, c), total = c.places.length;
+  const pieces = c.places.map((p) => `<i class="${placeDone(session.state, p) ? "on" : ""}" title="${esc(L(p.chapter))}">${placeDone(session.state, p) ? c.story.icon : ""}</i>`).join("");
   const body = next
     ? `<p class="story-chapter">${t("chapterOf", { n: next.index + 1, total })} · <b>${esc(L(next.place.chapter))}</b></p>
        <div class="clue"><small>🗝️ ${t("nextClue")}</small><p>${esc(L(next.place.clue))}</p></div>
@@ -274,21 +279,21 @@ function storyCard(c) {
 
 // ---------- home ----------
 function renderHome(screen) {
-  const c = city(), info = levelInfo(state.xp);
-  const suggested = suggestions(state, c, { interests: profile.interests, position });
-  const story = storyNext(state, c);
-  const active = suggested.find((s) => state.started[s.place.id] && s.place.id !== story?.place.id);
+  const c = city(), info = levelInfo(session.state.xp);
+  const suggested = suggestions(session.state, c, { interests: session.profile.interests, position: session.position });
+  const story = storyNext(session.state, c);
+  const active = suggested.find((s) => session.state.started[s.place.id] && s.place.id !== story?.place.id);
   const picks = suggested.filter((s) => s !== active && s.place.id !== story?.place.id).slice(0, 3);
-  const today = dayKey(Date.now()), daily = dailyFor(c, today), dailyDone = state.dailies[today];
-  const activeCoupons = OFFERS.filter((o) => state.coupons[o.id] && state.coupons[o.id].expiresAt > Date.now()).length;
+  const today = dayKey(Date.now()), daily = dailyFor(c, today), dailyDone = session.state.dailies[today];
+  const activeCoupons = OFFERS.filter((o) => session.state.coupons[o.id] && session.state.coupons[o.id].expiresAt > Date.now()).length;
   screen.innerHTML = `
     <header class="topline">
-      <a class="avatar" href="#/profile" aria-label="${t("openProfile")}">${profile.avatar}</a>
-      <div><h1>${t("hello", { name: esc(profile.name || t("explorer").toLowerCase()) })}</h1><p>${t("helloSub", { city: esc(L(c.name)) })}</p></div>
+      <a class="avatar" href="#/profile" aria-label="${t("openProfile")}">${session.profile.avatar}</a>
+      <div><h1>${t("hello", { name: esc(session.profile.name || t("explorer").toLowerCase()) })}</h1><p>${t("helloSub", { city: esc(L(c.name)) })}</p></div>
       <button class="chip city-switch" data-switch>📍 ${esc(L(c.name))} ⇄</button>
     </header>
     <section class="card level-card">
-      <div class="row"><div class="level-badge">${info.level}</div><div><strong>${esc(L(info.title))}</strong><small>${info.ceil ? t("toNext", { n: info.ceil - state.xp, level: info.level + 1 }) : t("maxLevel")}</small></div><span class="xp-pill">${state.xp} XP</span></div>
+      <div class="row"><div class="level-badge">${info.level}</div><div><strong>${esc(L(info.title))}</strong><small>${info.ceil ? t("toNext", { n: info.ceil - session.state.xp, level: info.level + 1 }) : t("maxLevel")}</small></div><span class="xp-pill">${session.state.xp} XP</span></div>
       <div class="bar"><i style="width:${Math.round(info.progress * 100)}%"></i></div>
       ${activeCoupons ? `<a class="coupon-hint" href="#/rewards">🎁 ${t("wallet")} · ${t("couponsCount", { n: activeCoupons })} →</a>` : ""}
     </section>
@@ -296,8 +301,8 @@ function renderHome(screen) {
     ${!story ? otherCityCard(c) : ""}
     ${active ? `<p class="label">${t("active")}</p>
       <a class="card active-card" href="#/place/${active.place.id}">${art(active.place)}<div><h3>${esc(L(active.place.name))}</h3>
-        <span class="faint">${t("adventureProgress", { done: placeProgress(state, active.place), total: active.place.quests.length })}</span>
-        <div class="bar"><i style="width:${(placeProgress(state, active.place) / active.place.quests.length) * 100}%"></i></div></div></a>` : ""}
+        <span class="faint">${t("adventureProgress", { done: placeProgress(session.state, active.place), total: active.place.quests.length })}</span>
+        <div class="bar"><i style="width:${(placeProgress(session.state, active.place) / active.place.quests.length) * 100}%"></i></div></div></a>` : ""}
     ${picks.length ? `<div class="section-head"><h2>${t("suggested")}</h2><a href="#/explore">${t("seeAll")} →</a></div>${picks.map((s) => placeCard(s.place, s.reason)).join("")}` : ""}
     <div class="side-cards" style="margin-top:18px">
       <article class="card mini-card daily"><span class="tag">${t("dailyLabel")}</span><h3>${esc(L(daily.title))}</h3>
@@ -308,7 +313,7 @@ function renderHome(screen) {
   bindOtherCity(screen);
   $("[data-switch]", screen).addEventListener("click", () => {
     const index = CITIES.findIndex((x) => x.id === c.id);
-    profile.cityId = CITIES[(index + 1) % CITIES.length].id;
+    session.profile.cityId = CITIES[(index + 1) % CITIES.length].id;
     saveProfile(); render();
   });
   $("[data-daily]", screen)?.addEventListener("click", () => { dispatch({ type: "daily", cityId: c.id, dailyId: daily.id }); render(); });
@@ -316,18 +321,18 @@ function renderHome(screen) {
 }
 
 function otherCityCard(c) {
-  const other = CITIES.find((x) => x.id !== c.id && !cityComplete(state, x));
+  const other = CITIES.find((x) => x.id !== c.id && !cityComplete(session.state, x));
   return `<a class="card city-win row" href="#/city/${c.id}" style="margin-top:14px"><span style="font-size:34px">🏆</span><div><b>${t("cityTitle", { city: esc(L(c.name)) })}</b><br><small class="muted">${t("claimReward")} →</small></div></a>
     ${other ? `<button class="btn primary block" style="margin-top:12px" data-other="${other.id}">✈️ ${t("exploreOther", { city: esc(L(other.name)) })}</button>` : ""}`;
 }
 
 function bindOtherCity(screen) {
-  $("[data-other]", screen)?.addEventListener("click", (e) => { profile.cityId = e.currentTarget.dataset.other; saveProfile(); go("#/"); });
+  $("[data-other]", screen)?.addEventListener("click", (e) => { session.profile.cityId = e.currentTarget.dataset.other; saveProfile(); go("#/"); });
 }
 
 function renderDetox(card) {
   clearInterval(detoxTimer);
-  if (state.detox[dayKey(Date.now())]) {
+  if (session.state.detox[dayKey(Date.now())]) {
     card.innerHTML = `<span class="tag">${t("detoxLabel")}</span><h3>🌙</h3><p>${t("detoxDone")}</p>`;
     return;
   }
@@ -354,7 +359,7 @@ function renderDetox(card) {
 function renderExplore(screen, { id: mode }) {
   const c = city();
   const places = c.places.filter((p) => exploreFilter === "all" || p.interests.includes(exploreFilter));
-  const ranked = new Map(suggestions(state, c, { interests: profile.interests, position }).map((s) => [s.place.id, s]));
+  const ranked = new Map(suggestions(session.state, c, { interests: session.profile.interests, position: session.position }).map((s) => [s.place.id, s]));
   screen.innerHTML = `
     <div class="row between"><h1 class="page-title">${t("exploreTitle", { city: esc(L(c.name)) })}</h1>
       <div class="toggle"><button class="${mode !== "map" ? "on" : ""}" data-mode="list">${t("listView")}</button><button class="${mode === "map" ? "on" : ""}" data-mode="map">${t("mapView")}</button></div></div>
@@ -378,10 +383,10 @@ function drawMap(places) {
   window.L.polyline(places.map((p) => [p.lat, p.lng]), { color: "#f7c948", weight: 3, dashArray: "6 8", opacity: .8 }).addTo(map);
   places.forEach((p) => {
     const index = findPlace(p.id).index + 1;
-    const icon = window.L.divIcon({ className: "", html: `<div class="map-pin ${placeDone(state, p) ? "done" : ""}" style="background:${gradient(p)}">${placeDone(state, p) ? "✅" : p.emoji}<b>${index}</b></div>`, iconSize: [42, 42], iconAnchor: [21, 21] });
+    const icon = window.L.divIcon({ className: "", html: `<div class="map-pin ${placeDone(session.state, p) ? "done" : ""}" style="background:${gradient(p)}">${placeDone(session.state, p) ? "✅" : p.emoji}<b>${index}</b></div>`, iconSize: [42, 42], iconAnchor: [21, 21] });
     window.L.marker([p.lat, p.lng], { icon }).bindPopup(`<b>${index}. ${esc(L(p.name))}</b><br>${esc(L(p.chapter))}<br><a href="#/place/${p.id}">${t("quests", { n: p.quests.length })} →</a>`).addTo(map);
   });
-  if (position) window.L.circleMarker([position.lat, position.lng], { radius: 8, color: "#fff", weight: 3, fillColor: "#ff6b35", fillOpacity: 1 }).addTo(map);
+  if (session.position) window.L.circleMarker([session.position.lat, session.position.lng], { radius: 8, color: "#fff", weight: 3, fillColor: "#ff6b35", fillOpacity: 1 }).addTo(map);
   if (places.length) map.fitBounds(places.map((p) => [p.lat, p.lng]), { padding: [40, 40] });
 }
 
@@ -390,9 +395,9 @@ function renderPlace(screen, { id }) {
   const found = findPlace(id);
   if (!found) return go("#/explore");
   const { city: c, place, index } = found;
-  if (c.id !== profile.cityId) { profile.cityId = c.id; saveProfile(); }
-  const started = Boolean(state.started[place.id]), done = placeDone(state, place);
-  const progress = placeProgress(state, place);
+  if (c.id !== session.profile.cityId) { session.profile.cityId = c.id; saveProfile(); }
+  const started = Boolean(session.state.started[place.id]), done = placeDone(session.state, place);
+  const progress = placeProgress(session.state, place);
   screen.innerHTML = `
     <div class="place-hero" style="background:${gradient(place)}"><a class="back" href="#/explore">←</a><span class="big">${place.emoji}</span></div>
     <section class="place-head">
@@ -414,7 +419,7 @@ function renderPlace(screen, { id }) {
 }
 
 function questCard(quest, unlocked) {
-  const done = state.quests[quest.id];
+  const done = session.state.quests[quest.id];
   const type = QUEST_TYPES[quest.type];
   const rarity = questRarity(quest);
   let body = "";
@@ -456,7 +461,7 @@ function questCard(quest, unlocked) {
 
 function bindPlace(screen, place) {
   $("[data-start]", screen)?.addEventListener("click", () => { dispatch({ type: "start", placeId: place.id }); render(); document.getElementById("quests")?.scrollIntoView({ behavior: "smooth", block: "start" }); });
-  $("[data-again]", screen)?.addEventListener("click", () => { lastCompletion = null; go(`#/done/${place.id}`); });
+  $("[data-again]", screen)?.addEventListener("click", () => { session.lastCompletion = null; go(`#/done/${place.id}`); });
   all("[data-complete]", screen).forEach((b) => b.addEventListener("click", () => completeQuest(place, { questId: b.dataset.complete })));
   all("[data-skip]", screen).forEach((b) => b.addEventListener("click", () => completeQuest(place, { questId: b.dataset.skip, test: true })));
   all("[data-simulate]", screen).forEach((b) => b.addEventListener("click", () => { stopHunt(); completeQuest(place, { questId: b.dataset.simulate, test: true }); }));
@@ -580,7 +585,7 @@ function collectibleCard(place, { big = false } = {}) {
 }
 
 function couponTile(offer) {
-  const coupon = state.coupons[offer.id];
+  const coupon = session.state.coupons[offer.id];
   const expired = coupon && coupon.expiresAt < Date.now();
   return `<a class="coupon ${coupon ? "" : "locked"} ${expired ? "expired" : ""}" ${coupon ? `href="#/coupon/${offer.id}"` : ""}>
     <span class="coupon-icon">${coupon ? offer.icon : "🔒"}</span>
@@ -598,13 +603,13 @@ function unlockText(offer) {
 
 function renderDone(screen, { id }) {
   const found = findPlace(id);
-  if (!found || !placeDone(state, found.place)) return go(found ? `#/place/${id}` : "#/");
+  if (!found || !placeDone(session.state, found.place)) return go(found ? `#/place/${id}` : "#/");
   const { city: c, place, index } = found;
-  const fresh = lastCompletion?.placeId === place.id ? lastCompletion : null;
+  const fresh = session.lastCompletion?.placeId === place.id ? session.lastCompletion : null;
   const gained = placeXp(place) + (fresh?.cityCompleted ? XP.cityComplete : 0);
-  const storyAfter = storyNext(state, c);
-  const next = suggestions(state, c, { interests: profile.interests, position })[0];
-  const cityWon = cityComplete(state, c);
+  const storyAfter = storyNext(session.state, c);
+  const next = suggestions(session.state, c, { interests: session.profile.interests, position: session.position })[0];
+  const cityWon = cityComplete(session.state, c);
   clearToasts();
   const highlights = [
     ...(fresh?.levelUp ? [{ icon: "⬆️", name: t("levelUp", { title: L(fresh.levelUp.title) }), desc: `Lv ${fresh.levelUp.level}` }] : []),
@@ -614,11 +619,11 @@ function renderDone(screen, { id }) {
   const coupons = (fresh?.coupons ?? []).map((oid) => OFFERS.find((o) => o.id === oid));
   screen.innerHTML = `
     <section class="complete">
-      <div class="stamp" style="background:radial-gradient(circle,${place.colors[0]},${place.colors[1]})"><div class="inner"><span>${place.emoji}</span><b>${esc(L(place.name))}</b><small>${esc(L(c.name)).toUpperCase()} · ${formatDate(state.places[place.id].at)}</small></div></div>
+      <div class="stamp" style="background:radial-gradient(circle,${place.colors[0]},${place.colors[1]})"><div class="inner"><span>${place.emoji}</span><b>${esc(L(place.name))}</b><small>${esc(L(c.name)).toUpperCase()} · ${formatDate(session.state.places[place.id].at)}</small></div></div>
       <h1>${t("chapterComplete")}</h1>
       <p>${t("chapterLabel", { n: index + 1 })} · ${esc(L(place.chapter))}</p>
       <div class="xp-burst"><strong id="xp-count">+0</strong><small>${t("earned")}</small></div>
-      <div class="piece-found"><span>${c.story.icon}</span>${t("pieceFound", { piece: esc(L(c.story.piece)) })} · ${t("pieceProgress", { done: cityDoneCount(state, c), total: c.places.length, piece: esc(L(c.story.piece)) })}</div>
+      <div class="piece-found"><span>${c.story.icon}</span>${t("pieceFound", { piece: esc(L(c.story.piece)) })} · ${t("pieceProgress", { done: cityDoneCount(session.state, c), total: c.places.length, piece: esc(L(c.story.piece)) })}</div>
       <p class="label" style="text-align:left">🃏 ${t("cardUnlocked")}</p>
       ${collectibleCard(place, { big: true })}
       ${coupons.length ? `<p class="label" style="text-align:left">🎁 ${t("rewardsUnlocked")}</p><div class="coupon-list">${coupons.map(couponTile).join("")}</div>` : ""}
@@ -650,10 +655,10 @@ function countUp(node, target) {
 // ---------- city conquered ----------
 function renderCity(screen, { id }) {
   const c = findCity(id) ?? city();
-  if (!cityComplete(state, c)) return go("#/");
-  const reward = state.rewards[c.id];
+  if (!cityComplete(session.state, c)) return go("#/");
+  const reward = session.state.rewards[c.id];
   const cityXp = c.places.reduce((sum, p) => sum + placeXp(p), 0) + XP.cityComplete;
-  const finishedAt = Math.max(...c.places.map((p) => state.places[p.id].at));
+  const finishedAt = Math.max(...c.places.map((p) => session.state.places[p.id].at));
   screen.innerHTML = `
     <section class="complete">
       <a class="back" href="#/" style="position:static;display:grid;margin-bottom:6px">←</a>
@@ -661,7 +666,7 @@ function renderCity(screen, { id }) {
         <div class="medal"><span>🏆</span><b>${c.short}</b></div>
         <h2>${t("cityTitle", { city: esc(L(c.name)) })}</h2>
         <p class="muted">${esc(L(c.story.finale))}</p>
-        <p class="who">${profile.avatar} ${esc(profile.name || t("explorer"))}</p>
+        <p class="who">${session.profile.avatar} ${esc(session.profile.name || t("explorer"))}</p>
         <p class="faint">${formatDate(finishedAt)} · ${cityXp} XP</p>
         <ul>${c.places.map((p, i) => `<li>✅ ${i + 1}. ${p.emoji} ${esc(L(p.chapter))}</li>`).join("")}</ul>
       </div>
@@ -683,8 +688,8 @@ function renderCity(screen, { id }) {
 // ---------- rewards wallet ----------
 function renderRewards(screen) {
   const ordered = [city(), ...CITIES.filter((c) => c.id !== city().id)];
-  const unlocked = OFFERS.filter((o) => state.coupons[o.id]).sort((a, b) => state.coupons[b.id].at - state.coupons[a.id].at);
-  const locked = OFFERS.filter((o) => !state.coupons[o.id]);
+  const unlocked = OFFERS.filter((o) => session.state.coupons[o.id]).sort((a, b) => session.state.coupons[b.id].at - session.state.coupons[a.id].at);
+  const locked = OFFERS.filter((o) => !session.state.coupons[o.id]);
   screen.innerHTML = `
     <h1 class="page-title">🎁 ${t("rewardsTitle")}</h1>
     <p class="label">${t("wallet")}</p>
@@ -692,18 +697,18 @@ function renderRewards(screen) {
     ${locked.length ? `<p class="label">${t("lockedOffers")}</p><div class="coupon-list">${locked.map(couponTile).join("")}</div>` : ""}
     <p class="label">${t("cityVouchers")}</p>
     ${ordered.map((c) => {
-      const reward = state.rewards[c.id];
+      const reward = session.state.rewards[c.id];
       const body = reward ? `<div class="voucher">${reward.voucher}</div><small class="muted">${t("voucherHint", { prize: esc(L(c.reward.prize)) })}</small>`
-        : cityComplete(state, c) ? `<a class="btn primary small" href="#/city/${c.id}">🎁 ${t("claimReward")}</a>`
-        : `<small class="muted">${t("rewardLocked", { n: c.places.length, city: esc(L(c.name)), prize: esc(L(c.reward.prize)) })}</small><div class="bar teal" style="margin-top:10px"><i style="width:${(cityDoneCount(state, c) / c.places.length) * 100}%"></i></div>`;
-      return `<section class="card" style="margin-bottom:10px"><div class="row between" style="margin-bottom:8px"><b>🏆 ${esc(L(c.reward.name))}</b><span class="chip">${cityDoneCount(state, c)}/${c.places.length}</span></div>${body}</section>`;
+        : cityComplete(session.state, c) ? `<a class="btn primary small" href="#/city/${c.id}">🎁 ${t("claimReward")}</a>`
+        : `<small class="muted">${t("rewardLocked", { n: c.places.length, city: esc(L(c.name)), prize: esc(L(c.reward.prize)) })}</small><div class="bar teal" style="margin-top:10px"><i style="width:${(cityDoneCount(session.state, c) / c.places.length) * 100}%"></i></div>`;
+      return `<section class="card" style="margin-bottom:10px"><div class="row between" style="margin-bottom:8px"><b>🏆 ${esc(L(c.reward.name))}</b><span class="chip">${cityDoneCount(session.state, c)}/${c.places.length}</span></div>${body}</section>`;
     }).join("")}
     <p class="faint small-note">ℹ️ ${t("demoPartner")}</p>`;
 }
 
 function renderCoupon(screen, { id }) {
   const offer = OFFERS.find((o) => o.id === id);
-  const coupon = offer && state.coupons[offer.id];
+  const coupon = offer && session.state.coupons[offer.id];
   if (!coupon) return go("#/rewards");
   const expired = coupon.expiresAt < Date.now();
   screen.innerHTML = `
@@ -725,20 +730,20 @@ function renderCoupon(screen, { id }) {
 // ---------- passport ----------
 function renderPassport(screen) {
   const ordered = [city(), ...CITIES.filter((c) => c.id !== city().id)];
-  const earned = new Set(earnedBadges(state)), gifts = new Set(earnedGiftStamps(state)), cards = new Set(collectedCards(state));
+  const earned = new Set(earnedBadges(session.state)), gifts = new Set(earnedGiftStamps(session.state)), cards = new Set(collectedCards(session.state));
   const allPlaces = CITIES.flatMap((c) => c.places);
   screen.innerHTML = `
     <h1 class="page-title">🛂 ${t("passportTitle")}</h1>
     <div class="stats">
-      <div><b>${state.xp}</b><small>${t("statXp")}</small></div>
-      <div><b>${Object.keys(state.quests).length}</b><small>${t("statQuests")}</small></div>
+      <div><b>${session.state.xp}</b><small>${t("statXp")}</small></div>
+      <div><b>${Object.keys(session.state.quests).length}</b><small>${t("statQuests")}</small></div>
       <div><b>${cards.size}</b><small>${t("cards")}</small></div>
       <div><b>${earned.size + gifts.size}</b><small>${t("statBadges")}</small></div>
     </div>
     ${ordered.map((c) => `
-      <div class="section-head"><h2>${c.story.icon} ${esc(L(c.name))}</h2><span class="chip ${cityComplete(state, c) ? "green" : ""}">${cityDoneCount(state, c)} / ${c.places.length}</span></div>
+      <div class="section-head"><h2>${c.story.icon} ${esc(L(c.name))}</h2><span class="chip ${cityComplete(session.state, c) ? "green" : ""}">${cityDoneCount(session.state, c)} / ${c.places.length}</span></div>
       <div class="stamp-grid">${c.places.map((p, i) => {
-        const on = placeDone(state, p);
+        const on = placeDone(session.state, p);
         return `<a class="mini-stamp ${on ? "on" : ""}" href="#/place/${p.id}" style="--tilt:${((i * 37) % 11) - 5}deg;${on ? `background:radial-gradient(circle,${p.colors[0]},${p.colors[1]})` : ""}"><span>${p.emoji}</span><b>${esc(L(p.name))}</b></a>`;
       }).join("")}</div>`).join("")}
     <div class="section-head"><h2>🎁 ${t("giftStamps")}</h2><span class="chip gold">${gifts.size} / ${GIFT_STAMPS.length}</span></div>
@@ -757,10 +762,10 @@ function renderPassport(screen) {
 
 // ---------- guide ----------
 function renderGuide(screen) {
-  if (!chat.length) chat.push({ role: "assistant", text: t("guideWelcome") });
+  if (!session.chat.length) session.chat.push({ role: "assistant", text: t("guideWelcome") });
   screen.innerHTML = `
-    <header class="guide-head"><div class="avatar">🧞</div><div><h1>${t("guideTitle")}</h1><p>${t("guideSub")}</p></div><span class="chip source ${server.guide ? "green" : ""}">${server.guide ? "AI" : "Offline"}</span></header>
-    <div class="feed" id="feed">${chat.map((m) => `<div class="msg ${m.role === "user" ? "me" : "bot"}">${esc(m.text)}</div>`).join("")}</div>
+    <header class="guide-head"><div class="avatar">🧞</div><div><h1>${t("guideTitle")}</h1><p>${t("guideSub")}</p></div><span class="chip source ${session.server.guide ? "green" : ""}">${session.server.guide ? "AI" : "Offline"}</span></header>
+    <div class="feed" id="feed">${session.chat.map((m) => `<div class="msg ${m.role === "user" ? "me" : "bot"}">${esc(m.text)}</div>`).join("")}</div>
     <div class="guide-pad"></div>
     <div class="chat-dock">
       <div class="suggest-row">${["guideNext", "guideStory", "guideFood", "guideTransport"].map((k) => `<button data-ask>${t(k)}</button>`).join("")}</div>
@@ -778,53 +783,53 @@ async function askGuide(message) {
   add("me", message);
   const thinking = add("bot thinking", t("guideThinking"));
   const c = city();
-  const next = storyNext(state, c)?.place ?? null;
-  const last = [...c.places].reverse().find((p) => state.started[p.id]);
+  const next = storyNext(session.state, c)?.place ?? null;
+  const last = [...c.places].reverse().find((p) => session.state.started[p.id]);
   let reply = null;
-  if (server.guide && navigator.onLine) {
+  if (session.server.guide && navigator.onLine) {
     try {
-      const response = await fetch(apiUrl("guide"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, history: chat.slice(-8), cityId: c.id, placeId: next?.id, interests: profile.interests, lang: profile.lang }) });
+      const response = await fetch(apiUrl("guide"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, history: session.chat.slice(-8), cityId: c.id, placeId: next?.id, interests: session.profile.interests, lang: session.profile.lang }) });
       if (response.ok) reply = (await response.json()).reply;
     } catch { /* fall back to the offline guide */ }
   }
-  reply ??= localGuideReply({ message, lang: profile.lang, city: c, next, last, distance: position && next ? distanceMeters(position.lat, position.lng, next.lat, next.lng) : null });
+  reply ??= localGuideReply({ message, lang: session.profile.lang, city: c, next, last, distance: session.position && next ? distanceMeters(session.position.lat, session.position.lng, next.lat, next.lng) : null });
   thinking.classList.remove("thinking");
   thinking.textContent = reply;
-  chat.push({ role: "user", text: message }, { role: "assistant", text: reply });
+  session.chat.push({ role: "user", text: message }, { role: "assistant", text: reply });
 }
 
 // ---------- profile ----------
 function renderProfile(screen) {
-  const info = levelInfo(state.xp);
+  const info = levelInfo(session.state.xp);
   screen.innerHTML = `
-    <section class="profile-head"><div class="avatar">${profile.avatar}</div><h1>${esc(profile.name || t("explorer"))}</h1><p class="muted">Lv ${info.level} · ${esc(L(info.title))} · ${state.xp} XP</p></section>
-    <section class="card level-card"><div class="bar"><i style="width:${Math.round(info.progress * 100)}%"></i></div><small>${info.ceil ? t("toNext", { n: info.ceil - state.xp, level: info.level + 1 }) : t("maxLevel")}</small></section>
+    <section class="profile-head"><div class="avatar">${session.profile.avatar}</div><h1>${esc(session.profile.name || t("explorer"))}</h1><p class="muted">Lv ${info.level} · ${esc(L(info.title))} · ${session.state.xp} XP</p></section>
+    <section class="card level-card"><div class="bar"><i style="width:${Math.round(info.progress * 100)}%"></i></div><small>${info.ceil ? t("toNext", { n: info.ceil - session.state.xp, level: info.level + 1 }) : t("maxLevel")}</small></section>
     <p class="label">${t("levels")}</p>
     <div class="levels">${LEVELS.map((l, i) => `<div class="${i + 1 === info.level ? "current" : i + 1 < info.level ? "reached" : ""}"><b>${i + 1}</b><span>${esc(L(l.title))}</span><small>${l.xp} XP</small></div>`).join("")}</div>
     <p class="label">${t("settings")}</p>
-    <div class="setting"><span>${t("language")}</span><div class="seg">${[["uz", "O'zbekcha"], ["en", "English"], ["ru", "Русский"]].map(([code, name]) => `<button class="option ${profile.lang === code ? "on" : ""}" data-lang="${code}">${name}</button>`).join("")}</div></div>
-    <div class="setting"><span>${t("city")}</span><div class="seg">${CITIES.map((c) => `<button class="option ${profile.cityId === c.id ? "on" : ""}" data-city="${c.id}">${esc(L(c.name))}</button>`).join("")}</div></div>
-    <div class="setting"><span>${t("interests")}</span><div class="chips-wrap">${INTERESTS.map((i) => `<button class="option ${profile.interests.includes(i.id) ? "on" : ""}" data-interest="${i.id}">${i.icon} ${esc(L(i.name))}</button>`).join("")}</div></div>
+    <div class="setting"><span>${t("language")}</span><div class="seg">${[["uz", "O'zbekcha"], ["en", "English"], ["ru", "Русский"]].map(([code, name]) => `<button class="option ${session.profile.lang === code ? "on" : ""}" data-lang="${code}">${name}</button>`).join("")}</div></div>
+    <div class="setting"><span>${t("city")}</span><div class="seg">${CITIES.map((c) => `<button class="option ${session.profile.cityId === c.id ? "on" : ""}" data-city="${c.id}">${esc(L(c.name))}</button>`).join("")}</div></div>
+    <div class="setting"><span>${t("interests")}</span><div class="chips-wrap">${INTERESTS.map((i) => `<button class="option ${session.profile.interests.includes(i.id) ? "on" : ""}" data-interest="${i.id}">${i.icon} ${esc(L(i.name))}</button>`).join("")}</div></div>
     <label class="card toggle-row"><div><b>🧪 ${t("testMode")}</b><small class="muted">${t(testAllowed() ? "testModeHint" : "testModeOff")}</small></div><input type="checkbox" id="test-mode" ${testMode() ? "checked" : ""} ${testAllowed() ? "" : "disabled"} /></label>
     <button class="btn ghost block danger" style="margin-top:14px" data-reset>${t("reset")}</button>`;
-  all("[data-lang]", screen).forEach((b) => b.addEventListener("click", () => { profile.lang = b.dataset.lang; saveProfile(); render(); }));
-  all("[data-city]", screen).forEach((b) => b.addEventListener("click", () => { profile.cityId = b.dataset.city; saveProfile(); render(); }));
+  all("[data-lang]", screen).forEach((b) => b.addEventListener("click", () => { session.profile.lang = b.dataset.lang; saveProfile(); render(); }));
+  all("[data-city]", screen).forEach((b) => b.addEventListener("click", () => { session.profile.cityId = b.dataset.city; saveProfile(); render(); }));
   all("[data-interest]", screen).forEach((b) => b.addEventListener("click", () => {
     const id = b.dataset.interest;
-    const nextInterests = profile.interests.includes(id) ? profile.interests.filter((x) => x !== id) : [...profile.interests, id];
+    const nextInterests = session.profile.interests.includes(id) ? session.profile.interests.filter((x) => x !== id) : [...session.profile.interests, id];
     if (!nextInterests.length) return;
-    profile.interests = nextInterests; saveProfile(); render();
+    session.profile.interests = nextInterests; saveProfile(); render();
   }));
-  $("#test-mode", screen).addEventListener("change", (e) => { profile.testMode = e.target.checked; saveProfile(); });
+  $("#test-mode", screen).addEventListener("change", (e) => { session.profile.testMode = e.target.checked; saveProfile(); });
   $("[data-reset]", screen).addEventListener("click", async () => {
     if (!confirm(t("resetConfirm"))) return;
     [KEYS.state, KEYS.outbox, KEYS.detox, KEYS.profile].forEach(store.remove);
-    log = []; store.set(KEYS.log, log);
-    deviceId = uuid(); store.set(KEYS.device, deviceId);
+    session.log = []; store.set(KEYS.log, session.log);
+    session.deviceId = uuid(); store.set(KEYS.device, session.deviceId);
     await photos.clear();
-    state = emptyState();
-    profile = { name: "", avatar: AVATARS[0], lang: profile.lang, cityId: "tashkent", interests: [], done: false, testMode: true };
-    chat.length = 0;
+    session.state = emptyState();
+    session.profile = { name: "", avatar: AVATARS[0], lang: session.profile.lang, cityId: "tashkent", interests: [], done: false, testMode: true };
+    session.chat.length = 0;
     go("#/welcome/0");
   });
 }
