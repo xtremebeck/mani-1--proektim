@@ -1,7 +1,7 @@
 import { BADGES, CITIES, DETOX_MINUTES, GIFT_STAMPS, INTERESTS, OFFERS, QUEST_TYPES, RARITY, XP } from "../shared/content.mjs";
 import {
-  cityComplete, cityDoneCount, dailyFor, dayKey, distanceMeters, findCity, findPlace, findQuest, levelInfo, placeDone,
-  placeProgress, placeXp, questRarity, questXp, storyNext, suggestions
+  cityComplete, cityDoneCount, dailyFor, dayKey, distanceMeters, findPlace, findQuest, levelInfo, placeDone, placeProgress,
+  placeXp, questRarity, questXp, storyNext, suggestions
 } from "../shared/engine.mjs";
 import { bindOtherCity, collectibleCard, couponTile, otherCityCard, placeCard } from "./components/cards.mjs";
 import { clearToasts, confetti, countUp, toast } from "./core/feedback.mjs";
@@ -11,6 +11,7 @@ import { AVATARS, city, saveProfile, session, testMode } from "./core/session.mj
 import { KEYS, photos, store } from "./core/storage.mjs";
 import { checkServer, dispatch } from "./core/sync.mjs";
 import { $, all, art, errorText, esc, formatDate, formatDistance, gradient, L, pad, rarityChip, t } from "./core/ui.mjs";
+import { renderCity } from "./screens/city.mjs";
 import { renderGuide } from "./screens/guide.mjs";
 import { renderPassport } from "./screens/passport.mjs";
 import { renderProfile } from "./screens/profile.mjs";
@@ -406,39 +407,6 @@ function renderDone(screen, { id }) {
   bindOtherCity(screen);
   if (fresh) confetti();
   countUp($("#xp-count", screen), gained);
-}
-
-// ---------- city conquered ----------
-function renderCity(screen, { id }) {
-  const c = findCity(id) ?? city();
-  if (!cityComplete(session.state, c)) return go("#/");
-  const reward = session.state.rewards[c.id];
-  const cityXp = c.places.reduce((sum, p) => sum + placeXp(p), 0) + XP.cityComplete;
-  const finishedAt = Math.max(...c.places.map((p) => session.state.places[p.id].at));
-  screen.innerHTML = `
-    <section class="complete">
-      <a class="back" href="#/" style="position:static;display:grid;margin-bottom:6px">←</a>
-      <div class="certificate">
-        <div class="medal"><span>🏆</span><b>${c.short}</b></div>
-        <h2>${t("cityTitle", { city: esc(L(c.name)) })}</h2>
-        <p class="muted">${esc(L(c.story.finale))}</p>
-        <p class="who">${session.profile.avatar} ${esc(session.profile.name || t("explorer"))}</p>
-        <p class="faint">${formatDate(finishedAt)} · ${cityXp} XP</p>
-        <ul>${c.places.map((p, i) => `<li>✅ ${i + 1}. ${p.emoji} ${esc(L(p.chapter))}</li>`).join("")}</ul>
-      </div>
-      <section class="card" style="margin-top:16px">
-        <p class="label" style="margin-top:0">${t("rewardsTitle")} · ${esc(L(c.reward.name))}</p>
-        ${reward ? `<p class="muted">${t("voucher")}</p><div class="voucher">${reward.voucher}</div><p class="muted">${t("voucherHint", { prize: esc(L(c.reward.prize)) })}</p>` : `<button class="btn primary block" data-claim>🎁 ${t("claimReward")}</button>`}
-      </section>
-      <div class="actions">
-        ${navigator.share ? `<button class="btn ghost block" data-share>↗ ${t("share")}</button>` : ""}
-        <a class="btn ghost block" href="#/rewards">🎁 ${t("wallet")}</a>
-        <a class="link" href="#/">${t("backHome")}</a>
-      </div>
-    </section>`;
-  if (!reward) confetti();
-  $("[data-claim]", screen)?.addEventListener("click", () => { dispatch({ type: "reward", cityId: c.id }); render(); });
-  $("[data-share]", screen)?.addEventListener("click", () => navigator.share({ title: "UzQuest", text: `${t("cityTitle", { city: L(c.name) })} ${cityXp} XP 🏆`, url: location.origin }).catch(() => undefined));
 }
 
 // ---------- boot ----------
