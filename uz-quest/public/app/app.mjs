@@ -1,209 +1,25 @@
 import { BADGES, CITIES, DETOX_MINUTES, GIFT_STAMPS, INTERESTS, LEVELS, OFFERS, QUEST_TYPES, RARITY, XP } from "../shared/content.mjs";
 import {
-  applyEvent, cityComplete, cityDoneCount, collectedCards, dailyFor, dayKey, distanceMeters, earnedBadges, earnedGiftStamps,
-  emptyState, findCity, findPlace, findQuest, levelInfo, offerUnlocked, placeDone, placeProgress, placeXp, questRarity, questXp,
-  replay, storyNext, suggestions
+  cityComplete, cityDoneCount, collectedCards, dailyFor, dayKey, distanceMeters, earnedBadges, earnedGiftStamps,
+  emptyState, findCity, findPlace, findQuest, levelInfo, placeDone, placeProgress, placeXp, questRarity, questXp,
+  storyNext, suggestions
 } from "../shared/engine.mjs";
-import { translate } from "./i18n.mjs";
 import { localGuideReply } from "./local-guide.mjs";
+import { clearToasts, confetti, countUp, toast } from "./core/feedback.mjs";
+import { locate } from "./core/location.mjs";
+import { go, onBeforeRender, registerScreens, render, route } from "./core/router.mjs";
+import { AVATARS, city, saveProfile, session, testAllowed, testMode } from "./core/session.mjs";
 import { KEYS, photos, store, uuid } from "./core/storage.mjs";
-import { $, all, art, esc, formatDistance, gradient, pad } from "./core/ui.mjs";
+import { apiUrl, checkServer, dispatch } from "./core/sync.mjs";
+import { $, all, art, errorText, esc, formatDate, formatDistance, gradient, interestName, L, pad, rarityChip, t } from "./core/ui.mjs";
 
-// ---------- state ----------
-const guessLang = () => { const nav = (navigator.language || "en").toLowerCase(); return nav.startsWith("ru") ? "ru" : nav.startsWith("uz") ? "uz" : "en"; };
-const AVATARS = ["🧭", "🐫", "🦅", "🧕", "🧔", "👩‍🚀", "🦊", "🐯"];
-// State shared across the app. Code replaces its fields (session.state = …) instead of
-// reassigning module-level variables, so it can move into modules that import `session`.
-const session = {
-  profile: null, state: null, log: null, deviceId: null,
-  server: { online: false, guide: false, testEvents: true },
-  chat: [],
-  position: null,
-  lastCompletion: null
-};
-session.profile =store.get(KEYS.profile, null) ?? { name: "", avatar: AVATARS[0], lang: guessLang(), cityId: "tashkent", interests: [], done: false };
-session.profile.testMode ??= true; // MVP default: lets people try GPS hunts and photo spots from home
-session.state = store.get(KEYS.state, null);
-if (!session.state || session.state.v !== 3) session.state = emptyState();
-// Every accepted event, so progress the server rejects can be replayed away.
-// Older installs have progress but no log; they keep their state as is (log = null).
-session.log = store.get(KEYS.log, null);
-if (!session.log && !session.state.xp && !Object.keys(session.state.started).length) { session.log = []; store.set(KEYS.log, session.log); }
-session.deviceId = store.get(KEYS.device, null);
-if (!session.deviceId) { session.deviceId = uuid(); store.set(KEYS.device, session.deviceId); }
-
-// Test shortcuts follow the server's policy when it is reachable; the static build has no server.
-const testAllowed = () => !session.server.online || session.server.testEvents;
-const testMode = () => session.profile.testMode && testAllowed();
+// State used by a single screen; each moves into its screen's module in step 5.
 let pendingPhotoQuest = null;
 let detoxTimer = null;
 let map = null;
 let exploreFilter = "all";
 const timelinePicks = {};
 let hunt = null; // { questId, watchId, distance, message }
-
-const t = (key, vars) => translate(session.profile.lang, key, vars);
-const L = (value) => value?.[session.profile.lang] ?? value?.en ?? "";
-const city = () => findCity(session.profile.cityId) ?? CITIES[0];
-const formatDate = (ms) => new Date(ms).toLocaleDateString(session.profile.lang === "uz" ? "uz-UZ" : session.profile.lang);
-const saveProfile = () => store.set(KEYS.profile, session.profile);
-const interestName = (id) => L(INTERESTS.find((item) => item.id === id)?.name);
-const apiUrl = (path) => new URL(`../api/v1/${path}`, location.href).href;
-const rarityChip = (rarity) => `<span class="rarity" style="--c:${RARITY[rarity].color}">${esc(L(RARITY[rarity].name))}</span>`;
-const errorText = (code) => (translate(session.profile.lang, `err_${code}`) !== `err_${code}` ? t(`err_${code}`) : t("err_generic"));
-
-// ---------- events & sync ----------
-function dispatch(partial) {
-  const event = { id: uuid(), at: Date.now(), ...partial };
-  const before = session.state;
-  if (event.test && !testAllowed()) return { ok: false, error: "TEST_DISABLED" };
-  const result = applyEvent(session.state, event);
-  if (!result.ok) return result;
-  session.state = result.state;
-  store.set(KEYS.state, session.state);
-  if (session.log) { session.log.push(event); store.set(KEYS.log, session.log); }
-  store.set(KEYS.outbox, [...store.get(KEYS.outbox, []), event]);
-  const diff = (fn) => { const old = new Set(fn(before)); return fn(session.state).filter((id) => !old.has(id)); };
-  const newBadges = diff(earnedBadges), newGifts = diff(earnedGiftStamps);
-  const oldLevel = levelInfo(before.xp).level, newLevel = levelInfo(session.state.xp);
-  const leveledUp = newLevel.level > oldLevel;
-  if (result.placeCompleted) {
-    // The chapter-complete screen celebrates everything at once, so skip toasts.
-    const placeId = findQuest(event.questId)?.place.id;
-    session.lastCompletion = { placeId, newBadges, newGifts, coupons: result.coupons, levelUp: leveledUp ? newLevel : null, cityCompleted: result.cityCompleted };
-  } else {
-    if (result.gained) toast(t("gained", { n: result.gained }), "xp");
-    newBadges.forEach((id) => toast(t("badgeNew", { name: L(BADGES.find((b) => b.id === id).name) }), "gold"));
-    newGifts.forEach((id) => toast(t("newGift", { name: L(GIFT_STAMPS.find((g) => g.id === id).name) }), "gold"));
-    result.coupons.forEach((id) => toast(t("newCoupon", { partner: L(OFFERS.find((o) => o.id === id).partner) }), "gold"));
-    if (leveledUp) toast(t("levelUp", { title: L(newLevel.title) }), "gold");
-  }
-  navigator.vibrate?.(result.placeCompleted ? [40, 60, 40] : 30);
-  flush();
-  return result;
-}
-
-let flushing = null;
-// One sync at a time; a call made meanwhile runs once the current one finishes.
-function flush() {
-  const run = (flushing ?? Promise.resolve()).then(syncOutbox).finally(() => { if (flushing === run) flushing = null; });
-  flushing = run;
-  return run;
-}
-
-async function syncOutbox() {
-  if (!session.server.online || !navigator.onLine) return;
-  const outbox = store.get(KEYS.outbox, []);
-  if (!outbox.length) return;
-  try {
-    const response = await fetch(apiUrl("sync"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId: session.deviceId, lang: session.profile.lang, events: outbox }) });
-    if (!response.ok) return;
-    const data = await response.json();
-    const settled = new Set([...data.accepted, ...data.rejected.map((item) => item.id)]);
-    store.set(KEYS.outbox, store.get(KEYS.outbox, []).filter((event) => !settled.has(event.id)));
-    // A DUPLICATE means the server already has that progress; anything else never counted there.
-    const dropped = new Set(data.rejected.filter((item) => item.error !== "DUPLICATE").map((item) => item.id));
-    if (dropped.size && session.log) {
-      session.log = session.log.filter((event) => !dropped.has(event.id));
-      store.set(KEYS.log, session.log);
-      session.state = replay(session.log);
-      store.set(KEYS.state, session.state);
-      toast(t("syncRejected"), "error");
-      render();
-    }
-  } catch { /* retry later */ }
-}
-
-async function checkServer() {
-  const wasAllowed = testAllowed();
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3500);
-    const response = await fetch(apiUrl("health"), { cache: "no-store", signal: controller.signal });
-    clearTimeout(timer);
-    const data = response.ok ? await response.json() : null;
-    session.server.online = data?.service === "uzquest-api";
-    session.server.guide = Boolean(data?.guide);
-    session.server.testEvents = data?.testEvents !== false;
-  } catch { session.server.online = false; session.server.guide = false; }
-  if (testAllowed() !== wasAllowed && session.profile.done) render();
-  flush();
-}
-
-async function locate(ask = false) {
-  if (!navigator.geolocation) return;
-  if (!ask) {
-    const permission = await navigator.permissions?.query({ name: "geolocation" }).catch(() => null);
-    if (permission?.state !== "granted") return;
-  }
-  navigator.geolocation.getCurrentPosition((pos) => {
-    session.position = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    if (["home", "explore"].includes(route().name)) render();
-  }, () => undefined, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
-}
-
-// ---------- feedback ----------
-function raiseToasts() {
-  const box = $("#toasts");
-  if (!box.showPopover || !box.children.length) return;
-  try { box.hidePopover(); } catch { /* not open */ }
-  box.showPopover();
-}
-
-function clearToasts() {
-  const box = $("#toasts");
-  box.replaceChildren();
-  try { box.hidePopover?.(); } catch { /* not open */ }
-}
-
-function toast(text, kind = "") {
-  const box = $("#toasts");
-  const node = document.createElement("div");
-  node.className = `toast ${kind}`;
-  node.textContent = text;
-  box.append(node);
-  raiseToasts();
-  setTimeout(() => node.classList.add("leaving"), 2600);
-  setTimeout(() => { node.remove(); if (!box.children.length) try { box.hidePopover?.(); } catch { /* ignore */ } }, 3100);
-}
-
-function confetti() {
-  const layer = document.createElement("div");
-  layer.className = "confetti";
-  const colors = ["#ff6b35", "#f7c948", "#2ec4b6", "#7c3aed", "#22c55e", "#fff"];
-  layer.innerHTML = Array.from({ length: 70 }, () => `<i style="left:${Math.random() * 100}%;background:${colors[Math.floor(Math.random() * colors.length)]};animation-duration:${1.8 + Math.random() * 1.8}s;animation-delay:${Math.random() * .6}s;transform:rotate(${Math.random() * 360}deg)"></i>`).join("");
-  document.body.append(layer);
-  setTimeout(() => layer.remove(), 4500);
-}
-
-// ---------- router ----------
-function route() {
-  const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-  if (!session.profile.done) return { name: "welcome", step: Math.min(3, Math.max(0, Math.trunc(Number(parts[0] === "welcome" ? parts[1] : 0)) || 0)) };
-  const [name = "home", id] = parts;
-  return { name, id };
-}
-const go = (hash) => { if (location.hash === hash) render(); else location.hash = hash; };
-
-function render() {
-  clearInterval(detoxTimer);
-  if (map) { map.remove(); map = null; }
-  const r = route();
-  if (hunt && !(r.name === "place" && findQuest(hunt.questId)?.place.id === r.id)) stopHunt();
-  document.documentElement.lang = session.profile.lang;
-  all("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); });
-  const screens = { welcome: renderWelcome, home: renderHome, explore: renderExplore, place: renderPlace, done: renderDone, city: renderCity, passport: renderPassport, rewards: renderRewards, coupon: renderCoupon, guide: renderGuide, profile: renderProfile };
-  const screen = $("#screen");
-  const fullScreens = ["welcome", "done", "city", "coupon"];
-  $("#tabbar").hidden = fullScreens.includes(r.name);
-  screen.className = `screen ${fullScreens.includes(r.name) ? "full" : ""}`;
-  void screen.offsetWidth; // restart the enter animation
-  (screens[r.name] ?? renderHome)(screen, r);
-  const tab = { place: "explore", profile: "home" }[r.name] ?? r.name;
-  all("#tabbar a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
-  $("#offline").hidden = navigator.onLine;
-  $("#offline").textContent = t("offline");
-}
 
 // ---------- onboarding ----------
 function renderWelcome(screen, { step }) {
@@ -642,16 +458,6 @@ function renderDone(screen, { id }) {
   countUp($("#xp-count", screen), gained);
 }
 
-function countUp(node, target) {
-  const start = performance.now();
-  const step = (now) => {
-    const p = Math.min(1, (now - start) / 900);
-    node.textContent = `+${Math.round(target * (1 - (1 - p) ** 3))} XP`;
-    if (p < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
-
 // ---------- city conquered ----------
 function renderCity(screen, { id }) {
   const c = findCity(id) ?? city();
@@ -835,6 +641,12 @@ function renderProfile(screen) {
 }
 
 // ---------- boot ----------
+registerScreens({ welcome: renderWelcome, home: renderHome, explore: renderExplore, place: renderPlace, done: renderDone, city: renderCity, passport: renderPassport, rewards: renderRewards, coupon: renderCoupon, guide: renderGuide, profile: renderProfile });
+// Leaving a screen stops what it started.
+onBeforeRender(() => clearInterval(detoxTimer));
+onBeforeRender(() => { if (map) { map.remove(); map = null; } });
+onBeforeRender((r) => { if (hunt && !(r.name === "place" && findQuest(hunt.questId)?.place.id === r.id)) stopHunt(); });
+
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
 window.addEventListener("online", () => { render(); checkServer(); });
 window.addEventListener("offline", render);
