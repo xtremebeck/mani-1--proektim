@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { brotliCompressSync, constants as zlib, gzipSync } from "node:zlib";
 import { SqliteStore } from "./store.mjs";
 import { askGuide, guideAvailable } from "./guide.mjs";
 import { CITIES, OFFERS } from "../../public/shared/content.mjs";
@@ -240,6 +241,22 @@ async function redeem(voucher) {
   });
 }
 
+// Text files are sent compressed when the browser accepts it. Each compressed copy is made once
+// and reused until the file changes.
+const COMPRESSIBLE = new Set([".html", ".js", ".mjs", ".css", ".json", ".webmanifest", ".svg"]);
+const compressedCache = new Map();
+function compress(file, info, content, acceptEncoding = "") {
+  if (!COMPRESSIBLE.has(path.extname(file)) || content.length < 1024) return null;
+  const encoding = /\bbr\b/.test(acceptEncoding) ? "br" : /\bgzip\b/.test(acceptEncoding) ? "gzip" : null;
+  if (!encoding) return null;
+  const key = `${encoding}:${file}`;
+  const cached = compressedCache.get(key);
+  if (cached?.mtimeMs === info.mtimeMs) return { encoding, body: cached.body };
+  const body = encoding === "br" ? brotliCompressSync(content, { params: { [zlib.BROTLI_PARAM_QUALITY]: 9 } }) : gzipSync(content, { level: 9 });
+  compressedCache.set(key, { mtimeMs: info.mtimeMs, body });
+  return { encoding, body };
+}
+
 async function serveStatic(req, res, id) {
   let pathname;
   try { pathname = decodeURIComponent(new URL(req.url, "http://localhost").pathname); } catch { return fail(res, 400, "BAD_URL", "Malformed URL.", id); }
@@ -248,12 +265,18 @@ async function serveStatic(req, res, id) {
   const target = pathname.endsWith("/") ? `${pathname}index.html` : pathname === "/admin" ? "/admin.html" : pathname;
   const file = path.resolve(publicRoot, `.${target}`);
   if (!file.startsWith(publicRoot + path.sep)) return fail(res, 403, "FORBIDDEN", "Forbidden.", id);
-  try {
-    if (!(await stat(file)).isFile()) throw Error();
-    const content = await readFile(file);
-    res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream", "Content-Length": content.length, "Cache-Control": "no-cache", "X-Request-Id": id });
-    res.end(content);
-  } catch { fail(res, 404, "NOT_FOUND", "Not found.", id); }
+  let info;
+  try { info = await stat(file); if (!info.isFile()) throw Error(); } catch { return fail(res, 404, "NOT_FOUND", "Not found.", id); }
+  // "no-cache" makes the browser (and the service worker's network-first fetch) ask every time,
+  // so answer an unchanged file with a body-less 304.
+  const etag = `W/"${info.size.toString(36)}-${Math.floor(info.mtimeMs).toString(36)}"`;
+  const headers = { ...SECURITY_HEADERS, "Cache-Control": "no-cache", ETag: etag, Vary: "Accept-Encoding", "X-Request-Id": id };
+  if (req.headers["if-none-match"] === etag) { res.writeHead(304, headers); return res.end(); }
+  const content = await readFile(file);
+  const packed = compress(file, info, content, req.headers["accept-encoding"]);
+  const body = packed?.body ?? content;
+  res.writeHead(200, { ...headers, "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream", "Content-Length": body.length, ...(packed && { "Content-Encoding": packed.encoding }) });
+  res.end(req.method === "HEAD" ? undefined : body);
 }
 
 const server = createServer(async (req, res) => {
