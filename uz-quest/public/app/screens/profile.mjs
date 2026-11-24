@@ -1,7 +1,7 @@
 // Profile: level, Telegram account, language, city, interests, test mode and reset.
 import { CITIES, INTERESTS, LEVELS } from "../../shared/content.mjs";
 import { levelInfo } from "../../shared/engine.mjs";
-import { cancelLogin, logout, startLogin } from "../core/auth.mjs";
+import { cancelLogin, deleteAccount, logout, startLogin } from "../core/auth.mjs";
 import { go, render } from "../core/router.mjs";
 import { AVATARS, forgetAccount, saveProfile, session, testAllowed, testMode } from "../core/session.mjs";
 import { apiHeaders, apiUrl } from "../core/sync.mjs";
@@ -12,7 +12,7 @@ import { $, all, esc, L, t } from "../core/ui.mjs";
 function accountCard() {
   if (session.auth) {
     const who = session.auth.name ?? (session.auth.username ? `@${session.auth.username}` : "Telegram");
-    return `<section class="card account-card"><p class="label" style="margin-top:0">✈️ ${t("account")}</p><p>${t("tgLoggedIn", { name: `<b>${esc(who)}</b>` })}</p><button class="btn ghost small" data-logout>${t("tgLogout")}</button></section>`;
+    return `<section class="card account-card"><p class="label" style="margin-top:0">✈️ ${t("account")}</p><p>${t("tgLoggedIn", { name: `<b>${esc(who)}</b>` })}</p><button class="btn ghost small" data-logout>${t("tgLogout")}</button><button class="link danger" data-delete-account>${t("tgDelete")}</button></section>`;
   }
   if (!session.server.telegram) return "";
   if (session.login) {
@@ -48,6 +48,7 @@ export function renderProfile(screen) {
   $("[data-login]", screen)?.addEventListener("click", startLogin);
   $("[data-cancel-login]", screen)?.addEventListener("click", cancelLogin);
   $("[data-logout]", screen)?.addEventListener("click", logout);
+  $("[data-delete-account]", screen)?.addEventListener("click", deleteAccount);
   $("[data-reset]", screen).addEventListener("click", async () => {
     if (!confirm(t("resetConfirm"))) return;
     // A reset also logs this phone out; the account keeps its progress on the server.

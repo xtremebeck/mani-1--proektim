@@ -68,6 +68,19 @@ function finish(data) {
   flush();
 }
 
+// Deletes the Telegram account on the server with all its progress, on every phone, then starts
+// this phone over. Asks twice: this cannot be undone.
+export async function deleteAccount() {
+  if (!session.auth || !confirm(t("tgDeleteConfirm"))) return;
+  try {
+    const response = await fetch(apiUrl("auth/delete"), { method: "POST", headers: apiHeaders() });
+    if (!response.ok) throw Error();
+  } catch { toast(t("tgDeleteFailed"), "error"); return; }
+  await forgetAccount();
+  toast(t("tgDeleted"));
+  render();
+}
+
 export async function logout() {
   if (!confirm(t("tgLogoutConfirm"))) return;
   if (session.auth) fetch(apiUrl("auth/logout"), { method: "POST", headers: apiHeaders() }).catch(() => undefined);

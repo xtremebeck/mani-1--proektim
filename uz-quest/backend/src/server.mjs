@@ -329,13 +329,21 @@ const server = createServer(async (req, res) => {
       return result.status === 200 ? send(res, 200, result.body, id) : fail(res, result.status, result.code, result.message, id);
     }
     if (route === "POST /api/v1/auth/logout") { accounts.logout(req); return send(res, 200, { ok: true }, id); }
+    if (route === "POST /api/v1/auth/delete") {
+      const result = accounts.deleteAccount(req);
+      return result.status === 200 ? send(res, 200, result.body, id) : fail(res, result.status, result.code, result.message, id);
+    }
     if (route === "POST /api/v1/sync") {
       if (rateLimit(req, "sync", 60)) return fail(res, 429, "RATE_LIMITED", "Too many requests.", id);
+      // A phone that sends a session the server no longer has (logged out elsewhere, or the account
+      // was deleted) must hear so, or it would go on showing an account that is gone.
+      const session = accounts.sessionOf(req);
+      if (req.headers.authorization && !session) return fail(res, 401, "SESSION_REQUIRED", "This session has ended. Log in again.", id);
       const result = await sync(await readBody(req), {
         canCreateDevice: () => !rateLimit(req, "new-device", 10),
         meetBlocked: () => rateLimit(req, "meet-guess", MEET_GUESSES_PER_MINUTE, { count: false }),
         meetWrong: () => rateLimit(req, "meet-guess", MEET_GUESSES_PER_MINUTE)
-      }, accounts.sessionOf(req));
+      }, session);
       return result.status === 200 ? send(res, 200, result.body, id) : fail(res, result.status, result.code, result.message, id);
     }
     // Lets the app say "wrong word, ask again" on the spot instead of after the next sync.

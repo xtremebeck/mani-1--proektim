@@ -1,10 +1,11 @@
 // Logging in with Telegram on two phones, against a fake Telegram Bot API.
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 import { CITIES } from "../public/shared/content.mjs";
 import { readDevice, start } from "../backend/test/support/server.mjs";
 import { fakeTelegram } from "../backend/test/support/telegram.mjs";
-import { launch, localState, newContext, onboard, openPage, playPlace, waitSynced } from "./support.mjs";
+import { launch, localState, newContext, onboard, openPage, playPlace, toastTexts, waitSynced } from "./support.mjs";
 
 const tashkent = CITIES.find((city) => city.id === "tashkent");
 const [hazratiImam, chorsu] = tashkent.places;
@@ -87,6 +88,22 @@ describe("Telegram account: two phones, one progress", () => {
     assert.equal(await phone.page.evaluate(() => localStorage.getItem("uzq-auth")), null);
     await logIn(phone);
     await phone.page.waitForFunction((id) => JSON.parse(localStorage.getItem("uzq3-state")).places[id], chorsu.id, { timeout: 10000 });
+  });
+
+  test("deleting the account on one phone logs the other one out, with nothing left", async () => {
+    await phone.page.goto(`${server.base}/app/#/profile`);
+    phone.page.once("dialog", (dialog) => dialog.accept());
+    await phone.page.locator("[data-delete-account]").click();
+    await phone.page.waitForSelector("[data-login]");
+    assert.ok((await toastTexts(phone.page)).some((text) => /deleted/i.test(text)));
+    assert.equal((await localState(phone.page))?.xp ?? 0, 0);
+    // The tablet finds out on its next sync.
+    await tablet.page.reload();
+    await tablet.page.waitForFunction(() => localStorage.getItem("uzq-auth") === null, null, { timeout: 10000 });
+    assert.ok((await toastTexts(tablet.page)).some((text) => /logged out/i.test(text)));
+    assert.equal((await localState(tablet.page))?.xp ?? 0, 0);
+    const db = new DatabaseSync(server.dbFile, { readOnly: true });
+    try { assert.equal(db.prepare("SELECT COUNT(*) AS n FROM accounts").get().n, 0); } finally { db.close(); }
   });
 
   test("no JavaScript errors on either phone", () => {

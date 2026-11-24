@@ -131,6 +131,7 @@ sequenceDiagram
 - **Progress has one owner.** A device that is not logged in owns its own state. Once linked, the device syncs into the account's state, and every sync returns it, so each phone shows the progress of all of them. On the phone, that state plus the events not sent yet is the truth; the guest event log is no longer used.
 - **Merging.** Linking a device applies its accepted events on top of the account's state. Nothing the account already has changes (a coupon code shown on another phone keeps its code), and a quest done on both phones counts once.
 - **Logging out** (or a reset) gives the phone a new device id and an empty state. The old device stays linked, so its history remains part of the account.
+- **Deleting the account** (Profile) removes the account, every device linked to it with their events, its codes, sessions and login attempts. A phone that later syncs with a session that no longer exists gets a 401 and starts over, so no phone keeps showing a deleted account.
 - **Not synced:** the profile (name, avatar, interests). A new phone goes through onboarding before it can log in.
 
 ### 4. Content is data
@@ -155,6 +156,7 @@ The app detects the server through `GET /api/v1/health` and degrades on its own 
 | `POST /api/v1/auth/telegram/start` | — | Start a login for `deviceId`: a token and its `t.me` link; 503 without a bot, 409 if already linked |
 | `POST /api/v1/auth/telegram/status` | login token | `pending`, `cancelled`, `expired`, `used`, or `ok` with the session, the account and its state (handed out once) |
 | `POST /api/v1/auth/logout` | session | Ends the session |
+| `POST /api/v1/auth/delete` | session | Deletes the account with its devices, their events and codes, its sessions and login attempts |
 | `POST /api/v1/meet/check` | — | Is this the secret word of a meet quest? Records nothing; rate-limited with sync's wrong guesses |
 | `POST /api/v1/guide` | — | Ask Hamroh (Claude); returns 503 if not configured, 502 if it failed |
 | `GET /api/v1/admin/overview` | `x-admin-key` | Metrics, funnels per place, offers, vouchers, recent travellers |
@@ -218,7 +220,6 @@ Run the first two with `npm test` and the browser tests with `npm run test:e2e`.
 | Quiz, riddle and timeline answers ship to the client | They can be read instead of found on site | Acceptable: they are trivia, not proof of a visit |
 | Treasure-hunt GPS and photo quests are trusted | Coordinates can be spoofed and `hasPhoto` is just a flag | The server cannot prove either. Rewards that matter should depend on meet-a-local quests, which a partner confirms on site |
 | Accounts are optional | A guest's progress is lost with the phone or browser data | The app offers Telegram login in Profile |
-| No way to delete an account yet | A traveller cannot remove their data themselves | Add deletion (account, its devices and events) before a public launch |
 | One bot process | Long polling allows only one server using the bot token | Switch to a webhook for several servers |
 | In-memory rate limits | Reset on restart; behind a proxy all clients share one IP | Rate-limit at the reverse proxy |
 | String-built UI (`innerHTML`) | Manual event wiring; escaping must not be forgotten | Revisit when moving to native apps |
