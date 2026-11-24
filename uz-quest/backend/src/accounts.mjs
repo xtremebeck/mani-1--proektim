@@ -91,6 +91,14 @@ export function createAccounts({ store, bot, loginTtlMs, stateVersion }) {
       return match ? store.session(match[1]) : null;
     },
 
+    // Deletes the account of the request's session, with all its devices and progress.
+    deleteAccount(req) {
+      const session = this.sessionOf(req);
+      if (!session) return { status: 401, code: "SESSION_REQUIRED", message: "Log in to delete your account." };
+      const devices = store.transaction(() => store.deleteAccount(session.accountId));
+      return { status: 200, body: { deleted: true, devices } };
+    },
+
     logout(req) {
       const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? "");
       if (match) store.transaction(() => store.dropSession(match[1]));

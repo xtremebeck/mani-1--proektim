@@ -141,7 +141,11 @@ export class SqliteStore {
       dropOldLogins: sql("DELETE FROM logins WHERE expires_at < ?"),
       addSession: sql("INSERT INTO sessions (token_hash, account_id, device_id, created_at) VALUES (?, ?, ?, ?)"),
       session: sql("SELECT account_id AS accountId, device_id AS deviceId FROM sessions WHERE token_hash = ?"),
-      dropSession: sql("DELETE FROM sessions WHERE token_hash = ?")
+      dropSession: sql("DELETE FROM sessions WHERE token_hash = ?"),
+      dropSessions: sql("DELETE FROM sessions WHERE account_id = ?"),
+      dropLogins: sql("DELETE FROM logins WHERE device_id = ?"),
+      dropDevice: sql("DELETE FROM devices WHERE id = ?"),
+      dropAccount: sql("DELETE FROM accounts WHERE id = ?")
     };
   }
 
@@ -232,6 +236,22 @@ export class SqliteStore {
   addSession(token, accountId, deviceId, now) { this.#sql.addSession.run(hashToken(token), accountId, deviceId, now); }
   session(token) { return token ? this.#sql.session.get(hashToken(token)) ?? null : null; }
   dropSession(token) { this.#sql.dropSession.run(hashToken(token)); }
+
+  // Deletes an account and everything kept about it: its devices with their events, their codes,
+  // sessions and login attempts. Call inside transaction(). Returns how many devices went with it.
+  deleteAccount(accountId) {
+    const devices = this.devicesOf(accountId);
+    for (const device of devices) {
+      this.#sql.clearEvents.run(device.id);
+      this.#sql.clearCodes.run(`d:${device.id}`);
+      this.#sql.dropLogins.run(device.id);
+      this.#sql.dropDevice.run(device.id);
+    }
+    this.#sql.clearCodes.run(`a:${accountId}`);
+    this.#sql.dropSessions.run(accountId);
+    this.#sql.dropAccount.run(accountId);
+    return devices.length;
+  }
 
   // One-time import of the old JSON store (data/store.json), only into an empty database.
   // The file is kept, renamed to <file>.imported, never deleted. Returns the number of devices.

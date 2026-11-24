@@ -180,3 +180,41 @@ test("a database from before accounts is migrated and its codes still redeem", a
     check.close();
   } finally { await server.stop(); await rm(dir, { recursive: true, force: true }); }
 });
+
+test("deleting an account removes everything kept about it, and only it", async () => {
+  const BOB = { id: 3003, first_name: "Bob", language_code: "en" };
+  await withServer({}, async (server, tg) => {
+    await sync(server, "device-del-0001", placeEvents(chorsu, "d1"));
+    const alice = await login(server, tg, "device-del-0001", ALICE);
+    await sync(server, "device-del-0002", placeEvents(hazratiImam, "d2"));
+    await login(server, tg, "device-del-0002", ALICE);
+    await sync(server, "device-del-0003", placeEvents(chorsu, "d3"));
+    const bob = await login(server, tg, "device-del-0003", BOB);
+    const aliceCode = alice.state.coupons["tas-bakery"].code;
+
+    assert.equal((await post(server.base, "/api/v1/auth/delete", {})).status, 401, "a session is required");
+    const deleted = await post(server.base, "/api/v1/auth/delete", {}, { Authorization: `Bearer ${alice.session}` });
+    assert.equal(deleted.status, 200);
+    assert.deepEqual(await deleted.json(), { deleted: true, devices: 2 });
+
+    const db = new DatabaseSync(server.dbFile, { readOnly: true });
+    const count = (sql, ...args) => db.prepare(sql).get(...args).n;
+    try {
+      assert.equal(count("SELECT COUNT(*) AS n FROM accounts WHERE telegram_id = ?", ALICE.id), 0);
+      assert.equal(count("SELECT COUNT(*) AS n FROM devices WHERE id IN ('device-del-0001', 'device-del-0002')"), 0);
+      assert.equal(count("SELECT COUNT(*) AS n FROM events WHERE device_id IN ('device-del-0001', 'device-del-0002')"), 0);
+      assert.equal(count("SELECT COUNT(*) AS n FROM logins WHERE device_id IN ('device-del-0001', 'device-del-0002')"), 0);
+      assert.equal(count("SELECT COUNT(*) AS n FROM codes WHERE code = ?", aliceCode), 0);
+      assert.equal(count("SELECT COUNT(*) AS n FROM sessions"), 1, "only Bob's session is left");
+      assert.equal(count("SELECT COUNT(*) AS n FROM devices WHERE id = 'device-del-0003'"), 1, "Bob is untouched");
+    } finally { db.close(); }
+
+    assert.equal((await post(server.base, "/api/v1/admin/redeem", { voucher: aliceCode }, admin)).status, 404);
+    assert.equal((await sync(server, "device-del-0002", [], alice.session)).status, 401, "the other phone hears that its session ended");
+    assert.equal((await (await sync(server, "device-del-0001")).json()).state.xp, 0, "a deleted phone id starts over as a guest");
+    assert.equal((await sync(server, "device-del-0003", [], bob.session)).status, 200);
+    // Logging in again makes a new, empty account.
+    const again = await login(server, tg, "device-del-0004", ALICE);
+    assert.equal(again.state.xp, 0);
+  });
+});
