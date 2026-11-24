@@ -53,16 +53,21 @@ try {
 // from MEET_CODES_FILE (default data/meet-codes.json, not in git); development falls back to the
 // public demo words in backend/meet-codes.dev.json.
 const meetCodesFile = process.env.MEET_CODES_FILE ?? path.join(appRoot, "data", "meet-codes.json");
+// MEET_CODES may also hold the words as JSON, for hosts where setting a variable is easier than
+// placing a file (Railway, Render).
 async function loadMeetCodes() {
-  let raw = null;
-  try { raw = await readFile(meetCodesFile, "utf8"); } catch (error) { if (error.code !== "ENOENT") throw error; }
+  let raw = process.env.MEET_CODES ?? null;
+  let file = raw == null ? meetCodesFile : "the MEET_CODES variable";
+  if (raw == null) {
+    try { raw = await readFile(meetCodesFile, "utf8"); } catch (error) { if (error.code !== "ENOENT") throw error; }
+  }
   if (raw == null && production) {
-    console.error(`Secret words for meet quests are missing. Create ${meetCodesFile} (see README) or set MEET_CODES_FILE.`);
+    console.error(`Secret words for meet quests are missing. Create ${meetCodesFile} (see README), or set MEET_CODES_FILE or MEET_CODES.`);
     process.exit(1);
   }
-  const file = raw == null ? path.join(appRoot, "backend", "meet-codes.dev.json") : meetCodesFile;
+  if (raw == null) file = path.join(appRoot, "backend", "meet-codes.dev.json");
   let codes;
-  try { codes = JSON.parse(raw ?? await readFile(file, "utf8")); } catch { throw Error(`${file} is not valid JSON.`); }
+  try { codes = JSON.parse(raw ?? await readFile(file, "utf8")); } catch { console.error(`${file} is not valid JSON.`); process.exit(1); }
   const meetIds = CITIES.flatMap((city) => city.places.flatMap((place) => place.quests)).filter((quest) => quest.type === "meet").map((quest) => quest.id);
   const missing = meetIds.filter((questId) => typeof codes[questId] !== "string" || !normalizeAnswer(codes[questId]));
   if (missing.length) { console.error(`${file} has no secret word for: ${missing.join(", ")}`); process.exit(1); }
@@ -86,11 +91,22 @@ class HttpError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
 
-// Fixed one-minute windows per client IP. In-memory, so it resets on restart;
-// behind a reverse proxy every client shares the proxy's address.
+// Behind a hosting proxy (Railway, Render, nginx…) every request comes from the proxy's address,
+// so all travellers would share one rate limit. With TRUST_PROXY=1 the client is the last address
+// in X-Forwarded-For: the one the proxy itself saw. Earlier entries are whatever the client sent.
+const trustProxy = process.env.TRUST_PROXY === "1" || process.env.TRUST_PROXY === "true";
+function clientIp(req) {
+  if (trustProxy) {
+    const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",").map((part) => part.trim()).filter(Boolean);
+    if (forwarded.length) return forwarded[forwarded.length - 1];
+  }
+  return req.socket.remoteAddress;
+}
+
+// Fixed one-minute windows per client IP. In-memory, so it resets on restart.
 const windows = new Map();
 function rateLimit(req, bucket, max, { count = true } = {}) {
-  const key = `${bucket}:${req.socket.remoteAddress}`;
+  const key = `${bucket}:${clientIp(req)}`;
   const now = Date.now();
   let entry = windows.get(key);
   if (!entry || entry.reset <= now) { entry = { hits: 0, reset: now + 60_000 }; windows.set(key, entry); }
@@ -389,5 +405,5 @@ const server = createServer(async (req, res) => {
 });
 
 // Paths inside the project are shown relative to it, others in full.
-const shown = (file) => (path.relative(appRoot, file).startsWith("..") ? file : path.relative(appRoot, file));
+const shown = (file) => (!path.isAbsolute(file) || path.relative(appRoot, file).startsWith("..") ? file : path.relative(appRoot, file));
 server.listen(port, host, () => console.log(`UzQuest: http://${host}:${port}  (admin: /admin, test events: ${allowTest ? "on" : "off"}, telegram login: ${bot ? "on" : "off"}, secret words: ${shown(meetCodesSource)}, data: ${shown(databaseFile)})`));

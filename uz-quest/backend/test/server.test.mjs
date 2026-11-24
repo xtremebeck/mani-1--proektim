@@ -293,3 +293,37 @@ test("static files are compressed when accepted and revalidated with ETag", asyn
     assert.equal((await fetch(`${server.base}/assets/app-icon.svg`, { headers: { "Accept-Encoding": "gzip" } })).headers.get("content-encoding"), null);
   } finally { await server.stop(); }
 });
+
+test("secret words can come from the MEET_CODES variable", async () => {
+  const words = Object.fromEntries(Object.keys(DEV_CODES).map((id) => [id, `${id}-from-env`]));
+  const server = await start({ ...PROD_ENV, MEET_CODES: JSON.stringify(words) });
+  try {
+    assert.equal(server.exitCode, null, server.output());
+    const check = async (code) => (await post(server.base, "/api/v1/meet/check", { questId: "tas-chorsu-meet", code })).json();
+    assert.deepEqual(await check(words["tas-chorsu-meet"]), { ok: true });
+    assert.deepEqual(await check(DEV_CODES["tas-chorsu-meet"]), { ok: false });
+  } finally { await server.stop(); }
+  const broken = await start({ ...PROD_ENV, MEET_CODES: "{not json" });
+  try {
+    assert.equal(broken.exitCode, 1);
+    assert.match(broken.output(), /MEET_CODES variable is not valid JSON/);
+  } finally { await broken.stop(); }
+});
+
+test("behind a trusted proxy, each client gets its own rate limit", async () => {
+  // The admin login limit allows 10 failures a minute per address.
+  const fail = (server, ip) => fetch(`${server.base}/api/v1/admin/overview`, { headers: { "x-admin-key": "wrong", "X-Forwarded-For": ip } });
+  const proxied = await start({ TRUST_PROXY: "1" });
+  try {
+    for (let i = 0; i < 10; i++) await fail(proxied, "198.51.100.1");
+    assert.equal((await fail(proxied, "198.51.100.1")).status, 429);
+    assert.equal((await fail(proxied, "198.51.100.2")).status, 401, "another traveller is not blocked");
+    // A client cannot dodge its limit by adding its own entries in front.
+    assert.equal((await fail(proxied, "10.9.9.9, 198.51.100.1")).status, 429);
+  } finally { await proxied.stop(); }
+  const direct = await start();
+  try {
+    for (let i = 0; i < 10; i++) await fail(direct, `203.0.113.${i}`);
+    assert.equal((await fail(direct, "203.0.113.99")).status, 429, "without TRUST_PROXY the header is ignored");
+  } finally { await direct.stop(); }
+});
