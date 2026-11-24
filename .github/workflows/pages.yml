@@ -60,7 +60,7 @@ jobs:
       cancel-in-progress: true
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment-retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -74,4 +74,14 @@ jobs:
         with:
           path: uz-quest/dist
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      # Pages sometimes cannot find the artifact it was just given ("No artifacts named
+      # github-pages"); a moment later it can. A re-run of the job does not help, because it
+      # leaves two artifacts, so retry once within the same run.
+      - name: Wait before retrying the deploy
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+      - id: deployment-retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
