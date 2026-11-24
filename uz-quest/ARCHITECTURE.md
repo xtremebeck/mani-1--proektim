@@ -222,5 +222,5 @@ Run the first two with `npm test` and the browser tests with `npm run test:e2e`.
 | Treasure-hunt GPS and photo quests are trusted | Coordinates can be spoofed and `hasPhoto` is just a flag | The server cannot prove either. Rewards that matter should depend on meet-a-local quests, which a partner confirms on site |
 | Accounts are optional | A guest's progress is lost with the phone or browser data | The app offers Telegram login in Profile |
 | One bot process | Long polling allows only one server using the bot token | Switch to a webhook for several servers |
-| In-memory rate limits | Reset on restart; behind a proxy all clients share one IP | Rate-limit at the reverse proxy |
+| In-memory rate limits | Reset on restart, and are per process | Fine with one replica. Behind a hosting proxy, `TRUST_PROXY=1` takes the client from the last `X-Forwarded-For` entry |
 | String-built UI (`innerHTML`) | Manual event wiring; escaping must not be forgotten | Revisit when moving to native apps |

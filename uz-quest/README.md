@@ -66,7 +66,7 @@ The words **never ship to the browser**. Only the server knows them and checks t
 
 | Environment | Where the words come from |
 |---|---|
-| Production (`NODE_ENV=production`) | `MEET_CODES_FILE`, default `data/meet-codes.json` (not in git). The server will not start without a word for every meet quest. |
+| Production (`NODE_ENV=production`) | The `MEET_CODES` variable (JSON), or the file `MEET_CODES_FILE`, default `data/meet-codes.json` (not in git). The server will not start without a word for every meet quest. |
 | Development | The same file if it exists, otherwise the public demo words in `backend/meet-codes.dev.json`. |
 
 The file maps quest ids to words, for example `{ "tas-chorsu-meet": "…", "tas-plov-meet": "…", "sam-siy-meet": "…", "sam-kon-meet": "…" }`. Spelling is forgiving, as with riddles.
@@ -110,6 +110,8 @@ Progress from every phone the traveller logs in with is merged into the account,
 
 **Claude AI guide (optional).** Run `npm install`, then `ANTHROPIC_API_KEY=... npm start`. Without a key, Hamroh uses its built-in offline answers.
 
+**Server hosting.** [DEPLOY.md](DEPLOY.md) runs the server on Railway, with the database on a persistent volume. That is what Telegram login, sync and the partner dashboard need.
+
 **Static hosting.** `npm run build` writes `dist/`. GitHub Pages publishes it automatically on every push to `main`, after `npm test` and the browser tests pass. Pull requests run the same tests.
 
 ## Project layout
@@ -140,10 +142,10 @@ backend/src/                             ← zero-dependency Node server, sync A
 ## Before real users
 
 - **Check every place on site.** Coordinates are approximate, especially the treasure-hunt points. Check the quiz and riddle facts, and opening hours.
-- **Sign real partners.** Replace the demo offers, and agree secret words with the staff who play the "locals". Put the words in `data/meet-codes.json` on the server (see [Secret words](#secret-words-meet-a-local-quests)).
+- **Sign real partners.** Replace the demo offers, and agree secret words with the staff who play the "locals". Put the words in `data/meet-codes.json` on the server, or in the `MEET_CODES` variable as JSON (see [Secret words](#secret-words-meet-a-local-quests)).
 - **Infrastructure.**
   - Run with `NODE_ENV=production`, your own `ADMIN_KEY` and your own secret words file. The server will not start without either. Production mode also turns test events off.
-  - Daily and detox XP is only accepted within 48 hours, and the API is rate-limited per IP. Behind a reverse proxy all clients share one IP, so move rate limiting to the proxy.
+  - Daily and detox XP is only accepted within 48 hours, and the API is rate-limited per IP. Behind a hosting proxy (Railway, nginx…) set `TRUST_PROXY=1`, or every traveller shares the proxy's limit.
   - Back up `data/uzquest.db` regularly, for example `sqlite3 data/uzquest.db ".backup backup.db"`. That command is safe while the server runs. A plain file copy is only safe while it is stopped, because SQLite also keeps `-wal` and `-shm` files next to the database.
   - Use a commercial map tile provider.
   - Bump `CACHE` in `sw.js` on every release.
