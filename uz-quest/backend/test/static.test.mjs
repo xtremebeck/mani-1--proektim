@@ -9,9 +9,9 @@ const read = (file) => readFileSync(path.join(publicRoot, file), "utf8");
 
 // Every module the web app can load, relative to public/.
 function appModules() {
-  const list = ["app/app.mjs", "app/i18n.mjs", "app/local-guide.mjs", "shared/content.mjs", "shared/engine.mjs"];
-  for (const dir of ["core", "components", "screens"]) {
-    for (const file of readdirSync(path.join(publicRoot, "app", dir))) if (file.endsWith(".mjs")) list.push(`app/${dir}/${file}`);
+  const list = ["app/app.mjs", "app/i18n.mjs", "app/local-guide.mjs"];
+  for (const dir of ["app/core", "app/components", "app/screens", "shared", "shared/lang"]) {
+    for (const file of readdirSync(path.join(publicRoot, dir))) if (file.endsWith(".mjs")) list.push(`${dir}/${file}`);
   }
   return list.sort();
 }

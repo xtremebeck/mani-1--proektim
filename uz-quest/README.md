@@ -4,7 +4,7 @@ UzQuest is a story-driven quest travel app for Tashkent and Samarkand, inspired 
 
 | URL | What it is |
 |---|---|
-| `/` | **Project website**, modelled on subquester.app: features, how it works, cities, screenshots, a live playable demo, a partners section and an FAQ. In UZ, EN and RU. |
+| `/` | **Project website**, modelled on subquester.app: features, how it works, cities, screenshots, a live playable demo, a partners section and an FAQ. In Uzbek, English, Russian, Turkish and Chinese. |
 | `/app/` | **The web app.** This is the version to test now and move to the mobile app later. |
 | `/admin` | Partner dashboard: metrics, a funnel per place, partner offers, and redemption of vouchers and coupons. Local dev key: `uzquest-dev-admin` (only accepted on `127.0.0.1` outside production) |
 
@@ -121,13 +121,19 @@ public/
   index.html, landing.css, landing.mjs   ← project website (/)
   app/                                   ← the web app (/app/)
   shared/content.mjs                     ← stories, places, quests, cards, offers, gift stamps (UZ/EN/RU)
+  shared/lang/tr.mjs, zh.mjs             ← Turkish and Chinese for the content, app, website, guide and bot
+  shared/languages.mjs                   ← the list of supported languages
   shared/engine.mjs                      ← game rules: answer checks, XP, coupons, stamps, suggestions
   assets/screens/*.jpg                   ← real app screenshots used on the website
   admin.html, admin.mjs                  ← partner dashboard
 backend/src/                             ← zero-dependency Node server, sync API, Claude guide
 ```
 
-**Adding a place or quest.** Add it to `shared/content.mjs`. It appears everywhere automatically. The tests check that every quest has all three languages and a valid answer.
+**Adding a place or quest.** Add it to `shared/content.mjs`. It appears everywhere automatically. The tests check that every quest has all five languages and a valid answer.
+
+**Languages.** Uzbek, English and Russian are written inline (`tr(uz, en, ru)` in `content.mjs`, `STRINGS` in `app/i18n.mjs`, the website's `STRINGS`). Turkish and Chinese live in `shared/lang/tr.mjs` and `zh.mjs`, with content looked up by its English text. A missing translation falls back to English, and `backend/test/languages.test.mjs` names every missing or stale entry and checks that `{placeholders}` match. When you change an English text, update its Turkish and Chinese entries too; the test tells you which. For a riddle, add the Turkish and Chinese answers to its `answers`.
+
+⚠️ The Turkish and Chinese texts were drafted with Claude. Have a native speaker review them before launch.
 
 **Engine.** The same `engine.mjs` runs on the phone and on the server. It checks answers, timeline order and GPS distance. Secret words are only checked on the server, which passes them to the engine.
 

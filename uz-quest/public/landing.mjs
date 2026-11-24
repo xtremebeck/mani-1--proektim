@@ -1,4 +1,7 @@
 import { CITIES } from "./shared/content.mjs";
+import { LANGUAGES, matchLanguage } from "./shared/languages.mjs";
+import { landing as turkish } from "./shared/lang/tr.mjs";
+import { landing as chinese } from "./shared/lang/zh.mjs";
 
 const STRINGS = {
   en: {
@@ -10,7 +13,7 @@ const STRINGS = {
     statPlaces: "Adventures", statQuests: "Quests", statCities: "Cities", statLangs: "Languages",
     featLabel: "App features", featTitle: "Your complete Uzbekistan travel RPG", featText: "From smart suggestions to an AI companion, quest tracking and a digital passport, every walk becomes something to remember.",
     f1t: "10 kinds of quests", f1d: "Photo spots, treasure hunts with hot–cold GPS, riddles, timeline puzzles, quizzes, taste challenges — and meeting locals who whisper a secret word.",
-    f2t: "Hamroh, your AI companion", f2d: "Ask about a place's story, what to eat, or how to get around. Hamroh answers in Uzbek, English or Russian, even offline.",
+    f2t: "Hamroh, your AI companion", f2d: "Ask about a place's story, what to eat, or how to get around. Hamroh answers in Uzbek, English, Russian, Turkish and Chinese, even offline.",
     f3t: "Smart suggestions", f3d: "Tell us what you love (history, food, crafts, hidden gems) and UzQuest suggests where to go next, closest first.",
     f4t: "Passport, cards & gift stamps", f4d: "Collect stamps, 15 collectible cards from common to legendary, and gift stamps like Early Bird, Night Owl and Local Friend.",
     f5t: "Real discounts", f5d: "Finishing places unlocks coupons for partner cafés, restaurants and shops: free tea, 2-for-1 somsa, 15% off plov and more.",
@@ -38,7 +41,7 @@ const STRINGS = {
     q1: "What is UzQuest?", a1: "UzQuest is a gamified travel app for Uzbekistan. It turns sightseeing into adventures: each place has quests you complete to earn XP, stamps in your digital passport, badges and rewards.",
     q2: "Is it free? What are the rewards?", a2: "Yes, it's free for travellers. Finishing places and cities unlocks coupons from partner cafés, restaurants and shops, plus a city medal voucher.",
     q3: "Does it work offline?", a3: "Yes. Quests, your passport and progress are saved on your phone and sync when you reconnect. The AI guide also has an offline mode.",
-    q4: "Which languages are supported?", a4: "Uzbek, English and Russian, and you can switch at any time.",
+    q4: "Which languages are supported?", a4: "Uzbek, English, Russian, Turkish and Chinese, and you can switch at any time.",
     q5: "Where can I use it?", a5: "Right now in Tashkent and Samarkand, with {places} adventures and {quests} quests. Bukhara and Khiva are next.",
     q6: "Is there a mobile app?", a6: "The web app already works like an app: add it to your home screen. Native iOS and Android versions are next on our roadmap.",
     ctaTitle: "Ready to start your Uzbekistan quest?", ctaText: "Open the demo, pick your first adventure and earn your first stamp in minutes.",
@@ -55,7 +58,7 @@ const STRINGS = {
     statPlaces: "Sarguzasht", statQuests: "Kvest", statCities: "Shahar", statLangs: "Til",
     featLabel: "Imkoniyatlar", featTitle: "O'zbekiston bo'ylab to'liq sayohat RPG'si", featText: "Aqlli tavsiyalar, AI hamroh, kvestlar va raqamli pasport — har bir sayr esda qoladigan voqeaga aylanadi.",
     f1t: "10 xil kvest", f1d: "Foto nuqtalar, GPS \"issiq-sovuq\" xazina ovi, topishmoqlar, vaqt chizig'i jumboqlari, viktorinalar, ta'm sinovlari — va maxfiy so'z aytadigan mahalliy odamlar bilan uchrashuvlar.",
-    f2t: "Hamroh — AI yo'ldosh", f2d: "Joy tarixi, taom yoki transport haqida so'rang. Hamroh o'zbek, ingliz va rus tillarida, hatto oflayn javob beradi.",
+    f2t: "Hamroh — AI yo'ldosh", f2d: "Joy tarixi, taom yoki transport haqida so'rang. Hamroh o'zbek, ingliz, rus, turk va xitoy tillarida, hatto oflayn javob beradi.",
     f3t: "Aqlli tavsiyalar", f3d: "Nimani yoqtirishingizni ayting — tarix, taom, hunarmandchilik, yashirin joylar — UzQuest keyingi manzilni taklif qiladi.",
     f4t: "Pasport, kartalar va sovg'a stamplari", f4d: "Stamplar, oddiydan afsonaviygacha 15 ta kolleksiya kartasi va \"Erta turuvchi\", \"Tungi boyo'g'li\", \"Mahalliy do'st\" kabi sovg'a stamplarini yig'ing.",
     f5t: "Haqiqiy chegirmalar", f5d: "Joylarni yakunlash hamkor kafe, restoran va do'konlar kuponlarini ochadi: bepul choy, 2 ta somsa 1 narxida, palovga 15% va boshqalar.",
@@ -83,7 +86,7 @@ const STRINGS = {
     q1: "UzQuest nima?", a1: "UzQuest — O'zbekiston bo'ylab o'yinlashtirilgan sayohat ilovasi. Har bir joyda kvestlar bor: ularni bajarib XP, pasport stamplari, nishonlar va mukofotlar olasiz.",
     q2: "Bepulmi? Qanday sovg'alar bor?", a2: "Ha, sayohatchilar uchun bepul. Joylar va shaharlarni yakunlash hamkor kafe, restoran va do'konlar kuponlarini hamda shahar medali vaucherini ochadi.",
     q3: "Internetsiz ishlaydimi?", a3: "Ha. Kvestlar, pasport va progress telefoningizda saqlanadi va internet qaytganda sinxronlanadi. AI yo'ldoshning ham oflayn rejimi bor.",
-    q4: "Qaysi tillar bor?", a4: "O'zbek, ingliz va rus tillari — istalgan vaqtda almashtirish mumkin.",
+    q4: "Qaysi tillar bor?", a4: "O'zbek, ingliz, rus, turk va xitoy tillari — istalgan vaqtda almashtirish mumkin.",
     q5: "Qayerda ishlaydi?", a5: "Hozircha Toshkent va Samarqandda: {places} sarguzasht va {quests} kvest. Keyingisi — Buxoro va Xiva.",
     q6: "Mobil ilova bormi?", a6: "Veb-ilova allaqachon ilova kabi ishlaydi — uni bosh ekranga qo'shing. iOS va Android versiyalari rejamizda.",
     ctaTitle: "O'zbekiston kvestingizni boshlashga tayyormisiz?", ctaText: "Demoni oching, birinchi sarguzashtni tanlang va bir necha daqiqada birinchi stampni oling.",
@@ -100,7 +103,7 @@ const STRINGS = {
     statPlaces: "Приключений", statQuests: "Квестов", statCities: "Города", statLangs: "Языка",
     featLabel: "Возможности", featTitle: "Полноценная тревел-RPG по Узбекистану", featText: "Умные рекомендации, AI-спутник, квесты и цифровой паспорт — каждая прогулка становится историей.",
     f1t: "10 типов квестов", f1d: "Фото-точки, охота за сокровищами с GPS «горячо-холодно», загадки, хронологии, викторины, вкусовые задания — и встречи с местными, которые шепнут секретное слово.",
-    f2t: "Хамрох — AI-спутник", f2d: "Спросите об истории места, еде или транспорте. Хамрох отвечает на узбекском, английском и русском, даже офлайн.",
+    f2t: "Хамрох — AI-спутник", f2d: "Спросите об истории места, еде или транспорте. Хамрох отвечает на узбекском, английском, русском, турецком и китайском, даже офлайн.",
     f3t: "Умные рекомендации", f3d: "Расскажите, что вам нравится — история, еда, ремёсла, скрытые места — и UzQuest подскажет, куда идти дальше.",
     f4t: "Паспорт, карты и подарочные штампы", f4d: "Собирайте штампы, 15 коллекционных карт от обычных до легендарных и подарочные штампы: «Ранняя пташка», «Ночная сова», «Местный друг».",
     f5t: "Настоящие скидки", f5d: "Пройденные места открывают купоны партнёрских кафе, ресторанов и магазинов: бесплатный чай, 2 самсы по цене одной, −15% на плов и другое.",
@@ -128,7 +131,7 @@ const STRINGS = {
     q1: "Что такое UzQuest?", a1: "UzQuest — игровое тревел-приложение по Узбекистану. В каждом месте есть квесты: выполняя их, вы получаете XP, штампы в паспорт, значки и награды.",
     q2: "Это бесплатно? Какие награды?", a2: "Да, для путешественников бесплатно. Пройденные места и города открывают купоны партнёрских кафе, ресторанов и магазинов и ваучер на медаль города.",
     q3: "Работает без интернета?", a3: "Да. Квесты, паспорт и прогресс хранятся на телефоне и синхронизируются при подключении. У AI-спутника тоже есть офлайн-режим.",
-    q4: "Какие языки поддерживаются?", a4: "Узбекский, английский и русский — переключайтесь в любой момент.",
+    q4: "Какие языки поддерживаются?", a4: "Узбекский, английский, русский, турецкий и китайский — переключайтесь в любой момент.",
     q5: "Где можно играть?", a5: "Сейчас в Ташкенте и Самарканде: {places} приключений и {quests} квестов. Дальше — Бухара и Хива.",
     q6: "Есть мобильное приложение?", a6: "Веб-версия уже работает как приложение — добавьте её на главный экран. Версии для iOS и Android — следующий шаг.",
     ctaTitle: "Готовы начать свой квест по Узбекистану?", ctaText: "Откройте демо, выберите первое приключение и получите первый штамп за несколько минут.",
@@ -138,7 +141,9 @@ const STRINGS = {
   }
 };
 
-const guessLang = () => { const nav = (navigator.language || "en").toLowerCase(); return nav.startsWith("ru") ? "ru" : nav.startsWith("uz") ? "uz" : "en"; };
+STRINGS.tr = turkish;
+STRINGS.zh = chinese;
+const guessLang = () => matchLanguage(navigator.language);
 let lang = (() => { try { return localStorage.getItem("uzq-site-lang"); } catch { return null; } })() ?? guessLang();
 if (!STRINGS[lang]) lang = "en";
 const t = (key, vars = {}) => (STRINGS[lang][key] ?? STRINGS.en[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? "");
@@ -149,7 +154,7 @@ const totals = {
   places: CITIES.reduce((sum, c) => sum + c.places.length, 0),
   quests: CITIES.reduce((sum, c) => sum + c.places.reduce((s, p) => s + p.quests.length, 0), 0),
   cities: CITIES.length,
-  langs: 3
+  langs: LANGUAGES.length
 };
 
 function renderCities() {

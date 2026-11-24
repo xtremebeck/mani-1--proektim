@@ -43,13 +43,14 @@ flowchart TB
 
 | Path | Role | Runs in |
 |---|---|---|
-| `public/shared/content.mjs` | All game content as data: cities, places, quests, rarities, offers, badges, levels, in UZ/EN/RU | browser + server |
+| `public/shared/content.mjs` | All game content as data: cities, places, quests, rarities, offers, badges, levels, in UZ/EN/RU (Turkish and Chinese attached from `shared/lang/`) | browser + server |
+| `public/shared/languages.mjs`, `public/shared/lang/` | The supported languages (uz, en, ru, tr, zh); Turkish and Chinese texts for the content, app, website, offline guide and bot | browser + server |
 | `public/shared/engine.mjs` | Pure game rules: `applyEvent`, `replay`, answer checks, XP, coupons, badges, suggestions | browser + server |
 | `public/app/app.mjs` | Entry point: registers the screens, wires global listeners, draws the first screen | browser |
 | `public/app/core/` | `session` (state loaded from the device), `sync` (events, outbox, server sync), `router` (hash routes, `registerScreens`, `onBeforeRender`), `storage`, `ui` (DOM and text helpers), `feedback` (toasts, confetti), `location` | browser |
 | `public/app/components/cards.mjs` | Cards used by more than one screen: place cards, coupon tiles, collectible cards | browser |
 | `public/app/screens/` | One module per screen. `hunt.mjs` and `photos.mjs` are helpers of `place.mjs` | browser |
-| `public/app/i18n.mjs` | UI strings in three languages | browser |
+| `public/app/i18n.mjs` | UI strings in five languages | browser |
 | `public/app/local-guide.mjs` | Offline Hamroh: keyword intents answered from local tips | browser |
 | `public/sw.js` | Service worker: precaches the app shell, network-first with cache fallback | browser |
 | `public/index.html`, `landing.*` | Project website with an embedded live demo | browser |
@@ -136,7 +137,7 @@ sequenceDiagram
 
 ### 4. Content is data
 
-Adding a city, place, quest, offer or badge means editing `content.mjs` only. The UI, the suggestions, the admin funnels and the tests all read from it. `engine.test.mjs` checks that ids are unique, answers are valid and every text exists in three languages.
+Adding a city, place, quest, offer or badge means editing `content.mjs` only. The UI, the suggestions, the admin funnels and the tests all read from it. `engine.test.mjs` checks that ids are unique, answers are valid and every quest exists in all five languages; `languages.test.mjs` checks that every Turkish and Chinese entry exists, matches its English placeholders and is not stale.
 
 ### 5. Two deployment shapes
 

@@ -1,7 +1,12 @@
 // All city, place, quest, story and reward content. Shared by the web app and the Node backend.
 // Every city is a story campaign: each place is one chapter with a set of quests.
 
-const tr = (uz, en, ru) => ({ uz, en, ru });
+import { text as turkish } from "./lang/tr.mjs";
+import { text as chinese } from "./lang/zh.mjs";
+
+// Every text in Uzbek, English and Russian; Turkish and Chinese come from shared/lang/, looked up
+// by the English text. A missing translation falls back to English wherever texts are shown.
+const tr = (uz, en, ru) => ({ uz, en, ru, tr: turkish[en], zh: chinese[en] });
 
 export const XP = { placeComplete: 50, cityComplete: 300, daily: 75, detox: 60 };
 export const DETOX_MINUTES = 20;
@@ -101,7 +106,8 @@ export const CITIES = [
           { id: "tas-chorsu-riddle", type: "riddle",
             title: tr("Gumbaz rangi", "Colour of the dome", "Цвет купола"),
             prompt: tr("Bozorning ulkan gumbazi qanday rangda? Bir so'z bilan yozing.", "What colour is the bazaar's giant dome? Type one word.", "Какого цвета огромный купол базара? Напишите одно слово."),
-            answers: ["blue", "turquoise", "green", "ko'k", "kok", "moviy", "feruza", "yashil", "синий", "голубой", "бирюзовый", "зелёный", "зеленый"] },
+            answers: ["blue", "turquoise", "green", "ko'k", "kok", "moviy", "feruza", "yashil", "синий", "голубой", "бирюзовый", "зелёный", "зеленый",
+              "mavi", "turkuaz", "yeşil", "yesil", "蓝", "蓝色", "青色", "绿松石色", "松石绿", "绿", "绿色"] },
           { id: "tas-chorsu-meet", type: "meet",
             title: tr("Ziravorchi Ravshan aka", "Ravshan the spice seller", "Торговец специями Равшан"),
             person: { emoji: "🧔", name: tr("Ravshan aka", "Ravshan aka", "Равшан ака"), where: tr("Gumbaz ostidagi ziravorlar qatori", "The spice row under the dome", "Ряд специй под куполом") },
@@ -218,7 +224,7 @@ export const CITIES = [
           { id: "tas-plov-riddle", type: "riddle",
             title: tr("Palovning ikkinchi nomi", "Plov's other name", "Второе имя плова"),
             prompt: tr("O'zbeklar palovni yana qanday atashadi? Uch harfli so'z.", "What else do Uzbeks call plov? A three-letter word.", "Как ещё узбеки называют плов? Слово из трёх букв."),
-            answers: ["osh", "ош", "oš"] }
+            answers: ["osh", "ош", "oš", "oş"] }
         ]
       }),
       place({
@@ -322,7 +328,7 @@ export const CITIES = [
           { id: "sam-gur-riddle", type: "riddle",
             title: tr("Yashil tosh", "The green stone", "Зелёный камень"),
             prompt: tr("Temurning qabr toshi qaysi yashil toshdan? Bir so'z.", "Timur's tombstone is made of which green stone? One word.", "Из какого зелёного камня надгробие Темура? Одно слово."),
-            answers: ["jade", "nephrite", "nefrit", "нефрит", "jadeite"] },
+            answers: ["jade", "nephrite", "nefrit", "нефрит", "jadeite", "yeşim", "yesim", "玉", "玉石", "软玉"] },
           { id: "sam-gur-photo", type: "photo",
             title: tr("Qovurg'ali gumbaz", "The ribbed dome", "Ребристый купол"),
             prompt: tr("Gumbazni darvoza orqali, ramkaga olingan holda suratga oling.", "Photograph the dome framed through the entrance gate.", "Сфотографируйте купол в рамке входных ворот.") }
@@ -386,7 +392,7 @@ export const CITIES = [
           { id: "sam-shz-riddle", type: "riddle",
             title: tr("Nom siri", "Secret of the name", "Тайна названия"),
             prompt: tr("\"Shohi Zinda\" — \"Tirik ...\". Yetishmayotgan so'zni yozing.", "\"Shah-i-Zinda\" means \"The Living ...\". Type the missing word.", "«Шахи-Зинда» — это «Живой ...». Напишите пропущенное слово."),
-            answers: ["king", "shoh", "shah", "царь", "шах", "king."] },
+            answers: ["king", "shoh", "shah", "царь", "шах", "king.", "kral", "王", "之王", "国王"] },
           { id: "sam-shz-photo", type: "photo",
             title: tr("Ko'k yo'lak", "Blue passage", "Синий коридор"),
             prompt: tr("Zinaning tepasidan maqbaralar yo'lagini pastga qarab suratga oling.", "From the top of the steps, photograph the avenue of tombs looking down.", "С верха лестницы сфотографируйте аллею мавзолеев, глядя вниз.") },

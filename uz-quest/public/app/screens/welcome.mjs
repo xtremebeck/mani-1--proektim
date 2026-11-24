@@ -1,5 +1,6 @@
 // Onboarding in four steps: language, name and avatar, city, interests.
 import { CITIES, INTERESTS } from "../../shared/content.mjs";
+import { LANGUAGES } from "../../shared/languages.mjs";
 import { go, render } from "../core/router.mjs";
 import { AVATARS, saveProfile, session } from "../core/session.mjs";
 import { $, all, esc, L, t } from "../core/ui.mjs";
@@ -10,7 +11,7 @@ export function renderWelcome(screen, { step }) {
   let body = "";
   if (step === 0) {
     body = `<div class="hero-emblem">🧭</div><h1>${t("obWelcomeTitle")}</h1><p class="lead">${t("obWelcomeText")}</p>
-      <div class="lang-row">${[["uz", "O'zbekcha"], ["en", "English"], ["ru", "Русский"]].map(([code, name]) => `<button class="option ${session.profile.lang === code ? "on" : ""}" data-lang="${code}">${name}</button>`).join("")}</div>${nav(true)}`;
+      <div class="lang-row">${LANGUAGES.map(({ code, name }) => `<button class="option ${session.profile.lang === code ? "on" : ""}" data-lang="${code}">${name}</button>`).join("")}</div>${nav(true)}`;
   } else if (step === 1) {
     body = `<h1>${t("obName")}</h1><input class="text-input" id="name" maxlength="24" autocomplete="nickname" placeholder="${t("obNamePlaceholder")}" value="${esc(session.profile.name)}" />
       <p class="lead">${t("obAvatar")}</p><div class="avatars">${AVATARS.map((a) => `<button class="option ${session.profile.avatar === a ? "on" : ""}" data-avatar="${a}">${a}</button>`).join("")}</div>${nav(true)}`;

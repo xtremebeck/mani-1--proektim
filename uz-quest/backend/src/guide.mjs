@@ -6,7 +6,7 @@ import { INTERESTS } from "../../public/shared/content.mjs";
 import { findCity, findPlace } from "../../public/shared/engine.mjs";
 
 const MODEL = process.env.GUIDE_MODEL ?? "claude-opus-5-5";
-const LANGUAGE_NAMES = { uz: "Uzbek (Latin script)", en: "English", ru: "Russian" };
+const LANGUAGE_NAMES = { uz: "Uzbek (Latin script)", en: "English", ru: "Russian", tr: "Turkish", zh: "Simplified Chinese" };
 
 let clientPromise = null;
 function getClient() {

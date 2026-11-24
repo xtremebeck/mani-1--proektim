@@ -1,13 +1,13 @@
 // Offline support: app shell is precached; CDN libraries are cached on first use.
 // Bump CACHE whenever shipped files change.
-const CACHE = "uzquest-v13";
+const CACHE = "uzquest-v14";
 const SHELL = [
   "./", "index.html", "landing.css", "landing.mjs",
   "app/", "app/index.html", "app/app.css", "app/app.mjs", "app/i18n.mjs", "app/local-guide.mjs",
   "app/core/auth.mjs", "app/core/feedback.mjs", "app/core/location.mjs", "app/core/router.mjs", "app/core/session.mjs", "app/core/storage.mjs", "app/core/sync.mjs", "app/core/ui.mjs",
   "app/components/cards.mjs",
   "app/screens/city.mjs", "app/screens/done.mjs", "app/screens/explore.mjs", "app/screens/guide.mjs", "app/screens/home.mjs", "app/screens/hunt.mjs", "app/screens/passport.mjs", "app/screens/photos.mjs", "app/screens/place.mjs", "app/screens/profile.mjs", "app/screens/rewards.mjs", "app/screens/welcome.mjs",
-  "shared/content.mjs", "shared/engine.mjs", "manifest.webmanifest",
+  "shared/content.mjs", "shared/engine.mjs", "shared/languages.mjs", "shared/lang/tr.mjs", "shared/lang/zh.mjs", "manifest.webmanifest",
   "assets/app-icon.svg", "assets/tashkent-hero.svg", "assets/registan-hero.jpg"
 ];
 const RUNTIME_HOSTS = ["cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];

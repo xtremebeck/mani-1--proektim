@@ -53,21 +53,27 @@ const TIPS = {
   }
 };
 
+import { text as turkish } from "../shared/lang/tr.mjs";
+import { text as chinese } from "../shared/lang/zh.mjs";
+
+const TRANSLATED = { tr: turkish, zh: chinese };
+
 const INTENTS = [
-  ["next", /next|where|keyingi|qayer|qaerda|следующ|где|куда/i],
-  ["story", /story|history|tarix|hikoya|истори|расскаж/i],
-  ["food", /food|\beat\b|hungry|plov|palov|ovqat|taom|yeyish|\bnon\b|еда|поесть|плов|кушать|попробовать/iu],
-  ["transport", /transport|taxi|metro|train|get around|bus|taksi|poyezd|avtobus|borsam|такси|метро|поезд|добрат|автобус/i],
+  ["next", /next|where|keyingi|qayer|qaerda|следующ|где|куда|sonraki|sıradaki|nereye|nerede|下一|去哪|哪里/i],
+  ["story", /story|history|tarix|hikoya|истори|расскаж|hikâye|hikaye|tarih|故事|历史/i],
+  ["food", /food|\beat\b|hungry|plov|palov|ovqat|taom|yeyish|\bnon\b|еда|поесть|плов|кушать|попробовать|yeme|yiye|yesem|pilav|吃|美食|饭/iu],
+  ["transport", /transport|taxi|metro|train|get around|bus|taksi|poyezd|avtobus|borsam|такси|метро|поезд|добрат|автобус|ulaşım|otobüs|tren|nasıl giderim|交通|地铁|出租车|火车|公交|怎么去/i],
   // Cyrillic needs lookarounds: \b only knows ASCII letters, so "сум" would also match "сумка".
-  ["money", /money|cash|\bcard|\batm\b|\bpul\b|karta|naqd|so'm|деньг|налич|банкомат|(?<!\p{L})(?:сум|картой|карточк\p{L}*)(?!\p{L})/iu],
-  ["etiquette", /etiquette|dress|wear|mosque|custom|kiyim|odob|masjid|одежд|этикет|мечет|обыча/i],
-  ["hello", /^(hi|hello|hey|salom|assalom|привет|здравств|салам)/i]
+  ["money", /money|cash|\bcard|\batm\b|\bpul\b|karta|naqd|so'm|деньг|налич|банкомат|(?<!\p{L})(?:сум|картой|карточк\p{L}*)(?!\p{L})|\bpara\b|nakit|döviz|钱|现金|刷卡|货币/iu],
+  ["etiquette", /etiquette|dress|wear|mosque|custom|kiyim|odob|masjid|одежд|этикет|мечет|обыча|kıyafet|giyin|cami|adab|礼仪|穿|清真寺|习俗/i],
+  ["hello", /^(hi|hello|hey|salom|assalom|привет|здравств|салам|merhaba|selam|你好|您好)/i]
 ];
 
 const formatDistance = (meters) => (meters < 1000 ? `${Math.round(meters / 10) * 10} m` : `${(meters / 1000).toFixed(1)} km`);
 
 export function localGuideReply({ message, lang, city, next, last, distance }) {
-  const pick = (value) => value?.[lang] ?? value?.en;
+  // Tips here and texts from content.mjs carry uz/en/ru; Turkish and Chinese are looked up by the English.
+  const pick = (value) => value?.[lang] ?? TRANSLATED[lang]?.[value?.en] ?? value?.en;
   const intent = INTENTS.find(([, pattern]) => pattern.test(message))?.[0] ?? "fallback";
   if (intent === "next") {
     if (!next) return pick(TIPS.done);

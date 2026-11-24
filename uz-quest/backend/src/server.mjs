@@ -9,6 +9,7 @@ import { SqliteStore } from "./store.mjs";
 import { TelegramBot } from "./telegram.mjs";
 import { askGuide, guideAvailable } from "./guide.mjs";
 import { CITIES, OFFERS } from "../../public/shared/content.mjs";
+import { LANGUAGE_CODES } from "../../public/shared/languages.mjs";
 import { applyEvent, cityDoneCount, emptyState, findCity, findQuest, levelInfo, normalizeAnswer } from "../../public/shared/engine.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -130,7 +131,7 @@ function isAdmin(req) {
 }
 
 const validId = (value) => typeof value === "string" && /^[A-Za-z0-9-]{8,64}$/.test(value);
-const validLang = (value) => (["uz", "en", "ru"].includes(value) ? value : "en");
+const validLang = (value) => (LANGUAGE_CODES.includes(value) ? value : "en");
 
 // Only the fields the engine reads are stored, so a client cannot pad the data file.
 const EVENT_FIELDS = ["id", "type", "at", "test", "placeId", "questId", "answer", "text", "code", "order", "hasPhoto", "lat", "lng", "accuracy", "cityId", "dailyId", "startedAt"];

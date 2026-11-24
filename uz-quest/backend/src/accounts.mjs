@@ -7,6 +7,9 @@
 // 3. The app polls loginStatus; once confirmed, the device is linked and gets a session token.
 import { randomBytes } from "node:crypto";
 import { emptyState, replay } from "../../public/shared/engine.mjs";
+import { bot as turkishBot } from "../../public/shared/lang/tr.mjs";
+import { bot as chineseBot } from "../../public/shared/lang/zh.mjs";
+import { matchLanguage } from "../../public/shared/languages.mjs";
 
 const TEXT = {
   en: {
@@ -31,7 +34,10 @@ const TEXT = {
     invalid: "Эта ссылка для входа устарела или уже использована. Начните заново в UzQuest."
   }
 };
-const textFor = (from) => { const code = from?.language_code ?? ""; return TEXT[code.startsWith("ru") ? "ru" : code.startsWith("uz") ? "uz" : "en"]; };
+TEXT.tr = turkishBot;
+TEXT.zh = chineseBot;
+// The bot answers in the language of the traveller's Telegram app.
+const textFor = (from) => TEXT[matchLanguage(from?.language_code)];
 const newToken = () => randomBytes(24).toString("base64url"); // 32 characters, fits Telegram's 64-character start parameter
 const displayName = (user) => [user.first_name, user.last_name].filter(Boolean).join(" ") || null;
 

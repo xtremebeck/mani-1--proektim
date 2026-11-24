@@ -2,10 +2,11 @@
 // (session.state = …) instead of reassigning variables, so every module sees the same values.
 import { CITIES } from "../../shared/content.mjs";
 import { emptyState, findCity } from "../../shared/engine.mjs";
+import { matchLanguage } from "../../shared/languages.mjs";
 import { KEYS, photos, store, uuid } from "./storage.mjs";
 
 export const AVATARS = ["🧭", "🐫", "🦅", "🧕", "🧔", "👩‍🚀", "🦊", "🐯"];
-const guessLang = () => { const nav = (navigator.language || "en").toLowerCase(); return nav.startsWith("ru") ? "ru" : nav.startsWith("uz") ? "uz" : "en"; };
+const guessLang = () => matchLanguage(navigator.language);
 
 export const session = {
   profile: null, state: null, log: null, deviceId: null,
