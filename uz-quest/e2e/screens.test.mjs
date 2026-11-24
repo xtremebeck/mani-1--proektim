@@ -243,3 +243,65 @@ describe("meet a local: only the server knows the secret word", () => {
 
   test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });
 });
+
+describe("Turkish and Chinese", () => {
+  const chorsu = tashkent.places.find((p) => p.id === "chorsu");
+  const riddle = chorsu.quests.find((q) => q.type === "riddle");
+  let server, context, page, errors;
+  before(async () => {
+    server = await start();
+    context = await newContext(browser);
+    ({ page, errors } = await openPage(context));
+    await onboard(page, server.base, { cityId: tashkent.id });
+  });
+  after(async () => { await context?.close(); await server?.stop(); });
+
+  test("onboarding offers all five languages", async () => {
+    const other = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const fresh = await other.newPage();
+    await fresh.goto(`${server.base}/app/`);
+    const names = await fresh.locator("[data-lang]").allTextContents();
+    assert.deepEqual(names, ["O'zbekcha", "English", "Русский", "Türkçe", "中文"]);
+    await fresh.locator("[data-lang=zh]").click();
+    await fresh.waitForFunction(() => document.querySelector("h1")?.textContent.includes("乌兹别克斯坦"));
+    await other.close();
+  });
+
+  test("in Turkish, the app, the content and the answers are Turkish", async () => {
+    await page.goto(`${server.base}/app/#/profile`);
+    await page.locator("[data-lang=tr]").click();
+    assert.equal(await page.locator("[data-i18n=navHome]").textContent(), "Ana sayfa");
+    assert.equal(await page.evaluate(() => document.documentElement.lang), "tr");
+    await page.goto(`${server.base}/app/#/place/${chorsu.id}`);
+    assert.match(await page.locator(".place-name").textContent(), /Çorsu Pazarı/);
+    await page.locator("[data-start]").click();
+    const card = page.locator(`#q-${riddle.id}`);
+    assert.match(await card.textContent(), /Kubbenin rengi/);
+    await card.locator("input").fill("MAVİ");
+    await card.locator("input").press("Enter");
+    await page.waitForFunction((id) => JSON.parse(localStorage.getItem("uzq3-state")).quests[id], riddle.id);
+  });
+
+  test("in Chinese, the guide answers offline in Chinese", async () => {
+    await page.goto(`${server.base}/app/#/profile`);
+    await page.locator("[data-lang=zh]").click();
+    assert.equal(await page.locator("[data-i18n=navHome]").textContent(), "首页");
+    await page.goto(`${server.base}/app/#/guide`);
+    await page.locator("#chat-input").fill("我该吃什么？");
+    await page.locator("#chat-input").press("Enter");
+    await page.waitForFunction(() => document.querySelectorAll("#feed .msg.bot:not(.thinking)").length >= 2);
+    assert.match(await page.locator("#feed .msg.bot").last().textContent(), /手抓饭/);
+  });
+
+  test("the website switches to Turkish and Chinese and counts five languages", async () => {
+    const site = await context.newPage();
+    await site.goto(`${server.base}/`);
+    assert.equal(await site.locator("#stat-langs").textContent(), "5");
+    await site.locator(".langs [data-lang=tr]").click();
+    assert.match(await site.locator("h1").first().innerHTML(), /görev görev/);
+    await site.locator(".langs [data-lang=zh]").click();
+    assert.match(await site.locator("h1").first().innerHTML(), /一次一个任务/);
+  });
+
+  test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });
+});

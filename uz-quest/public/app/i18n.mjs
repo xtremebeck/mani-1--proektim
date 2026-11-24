@@ -1,3 +1,6 @@
+import { ui as turkish } from "../shared/lang/tr.mjs";
+import { ui as chinese } from "../shared/lang/zh.mjs";
+
 export const STRINGS = {
   en: {
     navHome: "Home", navExplore: "Explore", navPassport: "Passport", navGuide: "Hamroh", navProfile: "Profile",
@@ -119,7 +122,7 @@ const EXTRA = {
     wallet: "Your coupons", lockedOffers: "Unlock more deals", unlockPlace: "Finish {place}", unlockCity: "Conquer {city}", unlockLevel: "Reach level {n}",
     showCashier: "Show this code to the cashier", validUntil: "Valid until {date}", expired: "Expired", demoPartner: "Sample partner for the demo — real partners coming soon.",
     cityVouchers: "City rewards", cards: "Collectible cards", giftStamps: "Gift stamps",
-    testMode: "Test mode", testModeHint: "Simulate GPS arrivals, skip photos and see secret words while testing at home.", explorer: "Explorer", share: "Share", testModeOff: "Turned off by the server — real rewards are live.", syncRejected: "The server could not verify some progress, so it was removed.", err_CLAIM_EXPIRED: "This claim is too old.", err_TEST_DISABLED: "Test mode is turned off on the server.",
+    testMode: "Test mode", testModeHint: "Simulate GPS arrivals and skip photo and meet-a-local quests while testing at home.", explorer: "Explorer", share: "Share", testModeOff: "Turned off by the server — real rewards are live.", syncRejected: "The server could not verify some progress, so it was removed.", err_CLAIM_EXPIRED: "This claim is too old.", err_TEST_DISABLED: "Test mode is turned off on the server.",
     newCoupon: "🎁 New coupon: {partner}", newGift: "Gift stamp: {name}", couponsCount: "{n} active", noCoupons: "Complete adventures to unlock café, restaurant and shop deals.",
     reasonStory: "Next chapter of your story", openProfile: "Profile"
   },
@@ -137,7 +140,7 @@ const EXTRA = {
     wallet: "Kuponlaringiz", lockedOffers: "Ko'proq takliflarni oching", unlockPlace: "{place}ni yakunlang", unlockCity: "{city}ni zabt eting", unlockLevel: "{n}-darajaga yeting",
     showCashier: "Bu kodni kassirga ko'rsating", validUntil: "{date} gacha amal qiladi", expired: "Muddati o'tgan", demoPartner: "Demo uchun namunaviy hamkor — haqiqiy hamkorlar tez orada.",
     cityVouchers: "Shahar mukofotlari", cards: "Kolleksiya kartalari", giftStamps: "Sovg'a stamplari",
-    testMode: "Test rejimi", testModeHint: "Uyda sinash uchun GPS'ni simulyatsiya qilish, suratsiz o'tish va maxfiy so'zlarni ko'rish.", explorer: "Sayyoh", share: "Ulashish", testModeOff: "Server tomonidan o'chirilgan — haqiqiy mukofotlar ishlamoqda.", syncRejected: "Server ba'zi natijalarni tasdiqlay olmadi, shuning uchun ular olib tashlandi.", err_CLAIM_EXPIRED: "Bu mukofot muddati o'tgan.", err_TEST_DISABLED: "Test rejimi serverda o'chirilgan.",
+    testMode: "Test rejimi", testModeHint: "Uyda sinash uchun GPS'ni simulyatsiya qilish, foto va mahalliy odam bilan uchrashuv kvestlarini o'tkazib yuborish.", explorer: "Sayyoh", share: "Ulashish", testModeOff: "Server tomonidan o'chirilgan — haqiqiy mukofotlar ishlamoqda.", syncRejected: "Server ba'zi natijalarni tasdiqlay olmadi, shuning uchun ular olib tashlandi.", err_CLAIM_EXPIRED: "Bu mukofot muddati o'tgan.", err_TEST_DISABLED: "Test rejimi serverda o'chirilgan.",
     newCoupon: "🎁 Yangi kupon: {partner}", newGift: "Sovg'a stampi: {name}", couponsCount: "{n} ta faol", noCoupons: "Kafe, restoran va do'kon takliflarini ochish uchun sarguzashtlarni yakunlang.",
     reasonStory: "Hikoyangizning keyingi bobi", openProfile: "Profil"
   },
@@ -155,12 +158,14 @@ const EXTRA = {
     wallet: "Ваши купоны", lockedOffers: "Откройте больше предложений", unlockPlace: "Пройдите: {place}", unlockCity: "Покорите: {city}", unlockLevel: "Достигните уровня {n}",
     showCashier: "Покажите этот код кассиру", validUntil: "Действует до {date}", expired: "Истёк", demoPartner: "Пример партнёра для демо — настоящие партнёры скоро.",
     cityVouchers: "Награды за города", cards: "Коллекционные карты", giftStamps: "Подарочные штампы",
-    testMode: "Тестовый режим", testModeHint: "Симуляция GPS, пропуск фото и подсказки секретных слов для тестов дома.", explorer: "Путешественник", share: "Поделиться", testModeOff: "Отключён сервером — действуют настоящие награды.", syncRejected: "Сервер не подтвердил часть прогресса, поэтому она удалена.", err_CLAIM_EXPIRED: "Срок этой награды истёк.", err_TEST_DISABLED: "Тестовый режим отключён на сервере.",
+    testMode: "Тестовый режим", testModeHint: "Симуляция GPS и пропуск фото и встреч с местными для тестов дома.", explorer: "Путешественник", share: "Поделиться", testModeOff: "Отключён сервером — действуют настоящие награды.", syncRejected: "Сервер не подтвердил часть прогресса, поэтому она удалена.", err_CLAIM_EXPIRED: "Срок этой награды истёк.", err_TEST_DISABLED: "Тестовый режим отключён на сервере.",
     newCoupon: "🎁 Новый купон: {partner}", newGift: "Подарочный штамп: {name}", couponsCount: "активных: {n}", noCoupons: "Проходите приключения, чтобы открыть скидки в кафе, ресторанах и магазинах.",
     reasonStory: "Следующая глава вашей истории", openProfile: "Профиль"
   }
 };
 for (const lang of Object.keys(EXTRA)) Object.assign(STRINGS[lang], EXTRA[lang]);
+STRINGS.tr = turkish;
+STRINGS.zh = chinese;
 
 export function translate(lang, key, vars = {}) {
   const template = STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? key;

@@ -1,6 +1,7 @@
 // Profile: level, Telegram account, language, city, interests, test mode and reset.
 import { CITIES, INTERESTS, LEVELS } from "../../shared/content.mjs";
 import { levelInfo } from "../../shared/engine.mjs";
+import { LANGUAGES } from "../../shared/languages.mjs";
 import { cancelLogin, deleteAccount, logout, startLogin } from "../core/auth.mjs";
 import { go, render } from "../core/router.mjs";
 import { AVATARS, forgetAccount, saveProfile, session, testAllowed, testMode } from "../core/session.mjs";
@@ -31,7 +32,7 @@ export function renderProfile(screen) {
     <p class="label">${t("levels")}</p>
     <div class="levels">${LEVELS.map((l, i) => `<div class="${i + 1 === info.level ? "current" : i + 1 < info.level ? "reached" : ""}"><b>${i + 1}</b><span>${esc(L(l.title))}</span><small>${l.xp} XP</small></div>`).join("")}</div>
     <p class="label">${t("settings")}</p>
-    <div class="setting"><span>${t("language")}</span><div class="seg">${[["uz", "O'zbekcha"], ["en", "English"], ["ru", "Русский"]].map(([code, name]) => `<button class="option ${session.profile.lang === code ? "on" : ""}" data-lang="${code}">${name}</button>`).join("")}</div></div>
+    <div class="setting"><span>${t("language")}</span><div class="seg">${LANGUAGES.map(({ code, name }) => `<button class="option ${session.profile.lang === code ? "on" : ""}" data-lang="${code}">${name}</button>`).join("")}</div></div>
     <div class="setting"><span>${t("city")}</span><div class="seg">${CITIES.map((c) => `<button class="option ${session.profile.cityId === c.id ? "on" : ""}" data-city="${c.id}">${esc(L(c.name))}</button>`).join("")}</div></div>
     <div class="setting"><span>${t("interests")}</span><div class="chips-wrap">${INTERESTS.map((i) => `<button class="option ${session.profile.interests.includes(i.id) ? "on" : ""}" data-interest="${i.id}">${i.icon} ${esc(L(i.name))}</button>`).join("")}</div></div>
     <label class="card toggle-row"><div><b>🧪 ${t("testMode")}</b><small class="muted">${t(testAllowed() ? "testModeHint" : "testModeOff")}</small></div><input type="checkbox" id="test-mode" ${testMode() ? "checked" : ""} ${testAllowed() ? "" : "disabled"} /></label>

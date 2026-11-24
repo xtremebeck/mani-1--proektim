@@ -28,11 +28,11 @@ function solve(quest, extra = {}) {
 const finishPlace = (place) => place.quests.map((q) => solve(q));
 const questOfType = (type) => CITIES.flatMap((c) => c.places.flatMap((p) => p.quests)).find((q) => q.type === type);
 
-test("content is complete: unique ids, valid answers, three languages", () => {
+test("content is complete: unique ids, valid answers, every language", () => {
   const quests = CITIES.flatMap((c) => c.places.flatMap((p) => p.quests));
   assert.equal(new Set(quests.map((q) => q.id)).size, quests.length);
   for (const q of quests) {
-    for (const lang of ["uz", "en", "ru"]) assert.ok(q.title[lang] && q.prompt[lang], `${q.id} ${lang}`);
+    for (const lang of ["uz", "en", "ru", "tr", "zh"]) assert.ok(q.title[lang] && q.prompt[lang], `${q.id} ${lang}`);
     if (q.type === "quiz") assert.ok(q.options[q.answer], q.id);
     if (q.type === "timeline") assert.deepEqual([...q.order].sort(), q.items.map((_, i) => i), q.id);
     if (q.type === "meet") assert.ok(DEV_CODES[q.id] && q.reveal.en && q.person.name.en, q.id);
