@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
@@ -46,6 +47,41 @@ try {
 } catch (error) {
   console.error(error.message);
   process.exit(1);
+}
+
+// Daily copies of the database, next to it in backups/, so a bad migration or a mistaken delete
+// can be undone. They share the database's disk, so they do not replace the copy the admin
+// downloads (GET /api/v1/admin/backup) and keeps elsewhere.
+const backupDir = process.env.BACKUP_DIR ?? path.join(path.dirname(databaseFile), "backups");
+const backupKeep = Math.max(0, Number.parseInt(process.env.BACKUP_KEEP ?? "7", 10) || 0);
+async function snapshot(file) {
+  const partial = `${file}.partial`;
+  await rm(partial, { force: true });
+  store.backup(partial);
+  await rename(partial, file);
+}
+async function dailyBackup() {
+  if (!backupKeep) return;
+  await mkdir(backupDir, { recursive: true });
+  const name = `uzquest-${new Date().toISOString().slice(0, 10)}.db`;
+  const names = (await readdir(backupDir)).filter((file) => /^uzquest-\d{4}-\d{2}-\d{2}\.db$/.test(file)).sort();
+  if (!names.includes(name)) { await snapshot(path.join(backupDir, name)); names.push(name); }
+  for (const old of names.slice(0, -backupKeep)) await rm(path.join(backupDir, old), { force: true });
+}
+const runDailyBackup = () => dailyBackup().catch((error) => console.error("Daily backup failed:", error.message));
+runDailyBackup();
+setInterval(runDailyBackup, 60 * 60_000).unref();
+
+async function sendBackup(res, id) {
+  await mkdir(backupDir, { recursive: true });
+  const file = path.join(backupDir, `download-${id}.db`);
+  await snapshot(file);
+  const { size } = await stat(file);
+  const name = `uzquest-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-")}.db`;
+  res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": "application/vnd.sqlite3", "Content-Length": size, "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store", "X-Request-Id": id });
+  const stream = createReadStream(file);
+  stream.on("close", () => rm(file, { force: true }).catch(() => {}));
+  stream.pipe(res);
 }
 
 // Secret words for "meet a local" quests. They never ship to the browser: the partner's staff
@@ -389,6 +425,7 @@ const server = createServer(async (req, res) => {
       if (rateLimit(req, "admin-fail", 10, { count: false })) return fail(res, 429, "RATE_LIMITED", "Too many failed attempts. Try again in a minute.", id);
       if (!isAdmin(req)) { rateLimit(req, "admin-fail", 10); return fail(res, 401, "ADMIN_REQUIRED", "Invalid admin key.", id); }
       if (route === "GET /api/v1/admin/overview") return send(res, 200, await overview(), id);
+      if (route === "GET /api/v1/admin/backup") return await sendBackup(res, id);
       if (route === "POST /api/v1/admin/redeem") {
         const result = await redeem((await readBody(req)).voucher);
         return result.status === 200 ? send(res, 200, result.body, id) : fail(res, result.status, result.code, result.message, id);

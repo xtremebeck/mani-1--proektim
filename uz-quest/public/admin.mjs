@@ -43,5 +43,22 @@ $("#redeem").addEventListener("click", async () => {
   } catch (error) { out.className = "error"; out.textContent = error.message; }
 });
 
+$("#backup").addEventListener("click", async () => {
+  const out = $("#backup-result");
+  out.className = "";
+  out.textContent = "Preparing…";
+  try {
+    const response = await fetch("api/v1/admin/backup", { headers: { "x-admin-key": key } });
+    if (!response.ok) throw Error((await response.json().catch(() => ({}))).error?.message ?? `Request failed (${response.status})`);
+    const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "")?.[1] ?? "uzquest.db";
+    const blob = await response.blob();
+    const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: name });
+    link.click();
+    URL.revokeObjectURL(link.href);
+    out.className = "ok";
+    out.textContent = `✓ ${name} (${(blob.size / 1024).toFixed(0)} KB)`;
+  } catch (error) { out.className = "error"; out.textContent = error.message; }
+});
+
 // A stored key that no longer works is dropped so the login form shows cleanly.
 if (key) load().catch((error) => { sessionStorage.removeItem("uzq-admin-key"); key = ""; $("#login").hidden = false; $("#login-error").textContent = error.message; });

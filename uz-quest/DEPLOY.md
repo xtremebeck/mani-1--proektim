@@ -50,10 +50,12 @@ Every push to `main` now redeploys the server, and GitHub Pages still publishes 
 
 ## Backups
 
-The database lives only on the volume. Back it up regularly:
+The server copies the database to `/data/backups/` once a day and keeps the last 7 days. That undoes a bad update or a mistaken delete, but those copies live on the same volume. So also:
 
+- **Download a copy** from the admin panel (**Download backup**) every week or so, and keep it off the server, for example in your cloud drive.
 - **Railway volume backups:** if your plan offers them, under the volume's settings.
-- **A copy you keep:** run `sqlite3 /data/uzquest.db ".backup /data/backup.db"` in the service's shell, then download `backup.db`. `.backup` is safe while the server runs. A plain file copy is not, because of the `-wal` file.
+
+To restore, put the copy on the volume as `/data/uzquest.db` while the service is stopped, and remove `uzquest.db-wal` and `uzquest.db-shm`.
 
 ## Moving existing data
 

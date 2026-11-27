@@ -96,6 +96,8 @@ npm test       # game rules and server tests
 
 **Data.** Progress is stored in SQLite at `data/uzquest.db` (set `DATABASE_FILE` to move it). A `data/store.json` from before SQLite is imported on the first start and kept as `data/store.json.imported`. The server refuses to import it into a database that already has data, so nothing is merged by accident.
 
+**Backups.** Once a day the server copies the database to `backups/` next to it (`uzquest-YYYY-MM-DD.db`) and keeps the last 7 days. `BACKUP_DIR` moves the folder; `BACKUP_KEEP` sets how many days to keep, and `0` turns the copies off. They sit on the same disk as the database, so also download one now and then from the admin panel (**Download backup**, or `GET /api/v1/admin/backup` with the admin key) and keep it elsewhere. To restore, stop the server and put the copy in place of `uzquest.db`, removing any `uzquest.db-wal` and `uzquest.db-shm` files.
+
 **Browser tests.** `npm run test:e2e` plays the app in headless Chromium against a real server: onboarding, quests, photo upload, sync, the admin panel, production settings and offline use. First run `npm install` and `npx playwright install chromium`. To reuse a Chromium you already have, set `CHROMIUM_PATH` to its executable.
 
 To test on your phone over the same Wi-Fi, run `HOST=0.0.0.0 ADMIN_KEY=<your-key> npm start` (the server refuses to listen on the network with the dev key) and open `http://<your-PC-IP>:4174`. GPS and the camera need `https://`, so use the GitHub Pages link for real treasure hunts.
@@ -146,6 +148,6 @@ backend/src/                             ← zero-dependency Node server, sync A
 - **Infrastructure.**
   - Run with `NODE_ENV=production`, your own `ADMIN_KEY` and your own secret words file. The server will not start without either. Production mode also turns test events off.
   - Daily and detox XP is only accepted within 48 hours, and the API is rate-limited per IP. Behind a hosting proxy (Railway, nginx…) set `TRUST_PROXY=1`, or every traveller shares the proxy's limit.
-  - Back up `data/uzquest.db` regularly, for example `sqlite3 data/uzquest.db ".backup backup.db"`. That command is safe while the server runs. A plain file copy is only safe while it is stopped, because SQLite also keeps `-wal` and `-shm` files next to the database.
+  - Keep downloaded backups somewhere other than the server (see **Backups** above). A plain copy of `uzquest.db` is only safe while the server is stopped, because SQLite also keeps `-wal` and `-shm` files next to it.
   - Use a commercial map tile provider.
   - Bump `CACHE` in `sw.js` on every release.

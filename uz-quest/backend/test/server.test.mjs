@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { CITIES } from "../../public/shared/content.mjs";
@@ -326,4 +326,36 @@ test("behind a trusted proxy, each client gets its own rate limit", async () => 
     for (let i = 0; i < 10; i++) await fail(direct, `203.0.113.${i}`);
     assert.equal((await fail(direct, "203.0.113.99")).status, 429, "without TRUST_PROXY the header is ignored");
   } finally { await direct.stop(); }
+});
+
+test("the admin can download a full backup, and the server keeps daily copies", async () => {
+  const server = await start({ BACKUP_KEEP: "2" });
+  try {
+    assert.equal(server.exitCode, null, server.output());
+    const deviceId = "device-backup-test-01";
+    assert.equal((await post(server.base, "/api/v1/sync", { deviceId, events: [] })).status, 200);
+    assert.equal((await fetch(`${server.base}/api/v1/admin/backup`)).status, 401);
+    const response = await fetch(`${server.base}/api/v1/admin/backup`, { headers: { "x-admin-key": "uzquest-dev-admin" } });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-disposition"), /attachment; filename="uzquest-[\d-]+\.db"/);
+    const copy = path.join(server.dir, "downloaded.db");
+    await writeFile(copy, Buffer.from(await response.arrayBuffer()));
+    assert.ok(readDevice(copy, deviceId), "the download holds the traveller");
+    const backups = path.join(server.dir, "backups");
+    const files = await readdir(backups);
+    assert.deepEqual(files, [`uzquest-${new Date().toISOString().slice(0, 10)}.db`], "only today's copy; the download's temp file is gone");
+  } finally { await server.stop(); }
+});
+
+test("daily copies beyond BACKUP_KEEP are removed", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "uzq-backups-"));
+  try {
+    for (const day of ["2020-01-01", "2020-01-02", "2020-01-03"]) await writeFile(path.join(dir, `uzquest-${day}.db`), "old");
+    await writeFile(path.join(dir, "notes.txt"), "kept");
+    const server = await start({ BACKUP_DIR: dir, BACKUP_KEEP: "2" });
+    try {
+      for (let i = 0; i < 50 && (await readdir(dir)).length !== 3; i++) await new Promise((r) => setTimeout(r, 20));
+      assert.deepEqual((await readdir(dir)).sort(), ["notes.txt", "uzquest-2020-01-03.db", `uzquest-${new Date().toISOString().slice(0, 10)}.db`]);
+    } finally { await server.stop(); }
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });

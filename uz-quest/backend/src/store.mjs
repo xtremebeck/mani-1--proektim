@@ -168,6 +168,10 @@ export class SqliteStore {
     }
   }
 
+  // Writes a consistent copy of the whole database to file, safe while the server is writing.
+  // The file must not exist yet.
+  backup(file) { this.#db.prepare("VACUUM INTO ?").run(file); }
+
   // Runs fn inside one transaction; any throw rolls everything back.
   transaction(fn) {
     this.#db.exec("BEGIN IMMEDIATE");

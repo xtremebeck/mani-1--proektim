@@ -71,6 +71,12 @@
             <h2>How to demo</h2>
             <p class="city-meta">Open the <a href="./app/">web app</a> on a phone, pick a place, mark its quests complete and finish a city to get a voucher. It shows up here within seconds.</p>
           </section>
+          <section class="panel no-print">
+            <h2>Backup</h2>
+            <p class="city-meta">Downloads a full copy of the database. Keep it somewhere other than the server, for example once a week. The server also keeps its own copies of the last 7 days.</p>
+            <button id="backup" type="button">Download backup</button>
+            <p id="backup-result"></p>
+          </section>
         </div>
         <div class="grid" id="cities"></div>
         <section class="panel"><h2>Partner offers</h2><p class="city-meta">Sample partners for the demo. Coupons unlock when travellers finish a place, a city or reach a level.</p><div class="table-wrap"><table><thead><tr><th>Partner</th><th>Deal</th><th>Issued</th><th>Redeemed</th></tr></thead><tbody id="offers"></tbody></table></div></section>
