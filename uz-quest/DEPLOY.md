@@ -1,6 +1,6 @@
 # Deploying the server to Railway
 
-GitHub Pages serves the static app only. Telegram login, sync, the partner dashboard and server-checked secret words need the Node server. This guide runs it on [Railway](https://railway.com), with the SQLite database on a persistent volume. It takes about 15 minutes and uses the Railway dashboard only, with no CLI.
+GitHub Pages only redirects visitors to the server (see README, Static hosting). Telegram login, sync, the partner dashboard and server-checked secret words need the Node server. This guide runs it on [Railway](https://railway.com), with the SQLite database on a persistent volume. It takes about 15 minutes and uses the Railway dashboard only, with no CLI.
 
 `uz-quest/railway.json` already sets the build and start commands and the health check (`/api/v1/health`). It also requires a volume at `/data` (`requiredMountPath`) and runs a single replica (`numReplicas: 1`), because the database file and the Telegram bot's polling must not run twice.
 
@@ -48,7 +48,7 @@ HTTPS matters: phones only allow GPS and the camera on secure pages, so treasure
 
 ## Deploying on every push
 
-CI deploys the server after the tests pass on `main` (the `server` job in `.github/workflows/pages.yml`). It deploys exactly the tested commit and fails if the deploy fails or the health check does not answer. GitHub Pages still publishes the static site. Railway restarts the service briefly on each deploy.
+CI deploys the server after the tests pass on `main` (the `server` job in `.github/workflows/pages.yml`). It deploys exactly the tested commit and fails if the deploy fails or the health check does not answer. GitHub Pages publishes its redirect pages. Railway restarts the service briefly on each deploy.
 
 It needs one secret, a Railway **project token**:
 

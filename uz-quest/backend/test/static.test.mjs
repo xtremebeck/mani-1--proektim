@@ -32,3 +32,29 @@ test("every app module is precached by the service worker", () => {
   const stale = shell.filter((file) => !file.endsWith("/") && !existsSync(path.join(publicRoot, file)));
   assert.deepEqual(stale, [], `sw.js precaches files that do not exist: ${stale.join(", ")}`);
 });
+
+test("the redirect build sends every page to the server and retires the offline copy", async () => {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const { mkdtemp, readFile: read, readdir: list, rm: remove, cp: copy } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const run = promisify(execFile);
+  // Build in a copy, so the test never touches the project's own dist/.
+  const dir = await mkdtemp(path.join(tmpdir(), "uzq-build-"));
+  try {
+    await copy(path.join(publicRoot, "../scripts"), path.join(dir, "scripts"), { recursive: true });
+    await copy(publicRoot, path.join(dir, "public"), { recursive: true });
+    const build = (env) => run(process.execPath, [path.join(dir, "scripts/build.mjs")], { env: { PATH: process.env.PATH, ...env } });
+    await build({ REDIRECT_TO: "https://example.org/" });
+    const dist = path.join(dir, "dist");
+    assert.deepEqual((await list(dist, { recursive: true })).sort(), ["404.html", "app", "app/index.html", "index.html", "sw.js"]);
+    const app = await read(path.join(dist, "app/index.html"), "utf8");
+    assert.match(app, /location\.replace\("https:\/\/example\.org\/app\/" \+ location\.search \+ location\.hash\)/);
+    assert.match(app, /unregister\(\)/);
+    assert.match(await read(path.join(dist, "index.html"), "utf8"), /"https:\/\/example\.org\/"/);
+    assert.match(await read(path.join(dist, "sw.js"), "utf8"), /caches\.delete[\s\S]*registration\.unregister\(\)/);
+    await assert.rejects(build({ REDIRECT_TO: "http://example.org" }), /must be an https/);
+    await build({});
+    assert.ok((await list(dist)).includes("landing.mjs"), "without REDIRECT_TO the full static app is built");
+  } finally { await remove(dir, { recursive: true, force: true }); }
+});

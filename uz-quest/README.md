@@ -73,7 +73,7 @@ The file maps quest ids to words, for example `{ "tas-chorsu-meet": "…", "tas-
 
 ⚠️ **Do not reuse the demo words** (`zira`, `qozon`, `yulduz`, `qog'oz`). They are public in this repository and its history. Choose words that are not in the place's story (for example a word plus two digits), and change them if they leak.
 
-The static GitHub Pages demo has no server, so there any word is accepted.
+A static build without a server (`npm run build`) cannot check them, so there any word is accepted.
 
 ## Test mode
 
@@ -100,7 +100,7 @@ npm test       # game rules and server tests
 
 **Browser tests.** `npm run test:e2e` plays the app in headless Chromium against a real server: onboarding, quests, photo upload, sync, the admin panel, production settings and offline use. First run `npm install` and `npx playwright install chromium`. To reuse a Chromium you already have, set `CHROMIUM_PATH` to its executable.
 
-To test on your phone over the same Wi-Fi, run `HOST=0.0.0.0 ADMIN_KEY=<your-key> npm start` (the server refuses to listen on the network with the dev key) and open `http://<your-PC-IP>:4174`. GPS and the camera need `https://`, so use the GitHub Pages link for real treasure hunts.
+To test on your phone over the same Wi-Fi, run `HOST=0.0.0.0 ADMIN_KEY=<your-key> npm start` (the server refuses to listen on the network with the dev key) and open `http://<your-PC-IP>:4174`. GPS and the camera need `https://`, so use the live server (https://uzquest-production.up.railway.app) for real treasure hunts.
 
 **Telegram login (optional).** Create a bot with [@BotFather](https://t.me/BotFather) and start the server with `TELEGRAM_BOT_TOKEN=<token>`. The server polls Telegram for the bot's messages, so it needs no public URL. Do not set a webhook for the same bot, because long polling and a webhook cannot be used together. Profile then shows "Log in with Telegram":
 
@@ -114,7 +114,7 @@ Progress from every phone the traveller logs in with is merged into the account,
 
 **Server hosting.** [DEPLOY.md](DEPLOY.md) runs the server on Railway, with the database on a persistent volume. That is what Telegram login, sync and the partner dashboard need.
 
-**Static hosting.** `npm run build` writes `dist/`. GitHub Pages publishes it automatically on every push to `main`, after `npm test` and the browser tests pass. Pull requests run the same tests.
+**Static hosting.** `npm run build` writes the whole offline app to `dist/`, for hosting without a server. With `REDIRECT_TO=https://…` it writes pages that send visitors to a server instead, keeping the page and app screen they asked for, and a service worker that removes the old offline copy from phones that installed it. GitHub Pages publishes that redirect build (to the Railway server) on every push to `main`, after `npm test` and the browser tests pass. Pull requests run the same tests.
 
 ## Project layout
 

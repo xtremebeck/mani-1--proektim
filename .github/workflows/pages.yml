@@ -1,5 +1,6 @@
 # Tests UzQuest (uz-quest/) on every pull request. On every push to main, once the tests pass,
-# publishes the website + web app to GitHub Pages and deploys the server to Railway.
+# deploys the server to Railway and publishes GitHub Pages, which now only redirects visitors
+# (and installed copies of the old static app) to the server.
 name: Deploy UzQuest to GitHub Pages
 
 on:
@@ -66,9 +67,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Build static site
+      - name: Build the redirect to the server
         run: npm run build
         working-directory: uz-quest
+        env:
+          REDIRECT_TO: https://uzquest-production.up.railway.app
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
