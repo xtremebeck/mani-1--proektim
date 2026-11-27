@@ -59,6 +59,10 @@ Without the secret the job only prints a notice. Do not also connect the reposit
 
 The service and environment ids in the workflow are this project's; change them if you deploy to a new Railway project.
 
+## Knowing when it is down
+
+`.github/workflows/uptime.yml` checks the health endpoint, the app and the website every 30 minutes, with three tries a minute apart, so a restart during a deploy is not an alarm. A failed run is the alert: GitHub emails about failed scheduled runs, and the Actions tab shows when the server was down. GitHub may run scheduled checks a few minutes late, and pauses them after 60 days without commits; re-enable the workflow in the Actions tab if that happens. Change `BASE` in the workflow if the address changes.
+
 ## Backups
 
 The server copies the database to `/data/backups/` once a day and keeps the last 7 days. That undoes a bad update or a mistaken delete, but those copies live on the same volume. So also:
