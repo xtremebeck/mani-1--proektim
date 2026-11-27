@@ -164,3 +164,27 @@ test("back-dated daily and detox claims are rejected when the server passes now"
   const recent = now - 3600000;
   assert.equal(applyEvent(emptyState(), { ...daily, dailyId: dailyFor(tashkent, dayKey(recent)).id, at: recent }, { now }).ok, true);
 });
+
+test("Bukhara: the story runs in order, and finishing it gives its badge, stamp, coupons and voucher", () => {
+  const bukhara = CITIES.find((city) => city.id === "bukhara");
+  assert.deepEqual(bukhara.places.map((p) => p.id), ["samanid", "bolo-hauz", "ark", "poi-kalon", "toki", "chor-minor", "lyabi-hauz"]);
+  assert.equal(storyNext(emptyState(), bukhara).place.id, "samanid");
+  const state = replay(bukhara.places.flatMap(finishPlace));
+  assert.equal(storyNext(state, bukhara), null);
+  assert.ok(earnedBadges(state).includes("bukhara"));
+  assert.ok(earnedGiftStamps(state).includes("afandi-friend"));
+  assert.equal(earnedBadges(state).includes("silk-road"), false, "one city is not two");
+  for (const offer of OFFERS.filter((o) => o.cityId === "bukhara")) assert.ok(state.coupons[offer.id], `${offer.id} unlocked`);
+  const reward = applyEvent(state, { type: "reward", cityId: "bukhara", id: "evt-bux-reward", at: clock++ });
+  assert.match(reward.state.rewards.bukhara.voucher, /^UZQ-BUX-[0-9A-Z]{6}$/);
+  // Riddles accept a number or a word in any of the app's languages.
+  const columns = bukhara.places.find((p) => p.id === "bolo-hauz").quests.find((q) => q.type === "riddle");
+  for (const text of ["40", "Forty", "qirq", "сорок", "kırk", "四十"]) assert.equal(applyEvent(emptyState(), solve(columns, { text })).ok, true, text);
+});
+
+test("Silk Road Voyager: any two finished cities", () => {
+  const [, samarkandCity, bukhara] = CITIES;
+  assert.equal(earnedBadges(replay(samarkandCity.places.flatMap(finishPlace))).includes("silk-road"), false);
+  const two = replay([...samarkandCity.places, ...bukhara.places].flatMap(finishPlace));
+  assert.ok(earnedBadges(two).includes("silk-road"), "Samarkand and Bukhara, without Tashkent");
+});

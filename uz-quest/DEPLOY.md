@@ -28,7 +28,7 @@ Service → **Variables**:
 | `ADMIN_KEY` | a long random string, e.g. from `openssl rand -hex 24` | Partner dashboard login. The server refuses to start without it |
 | `DATABASE_FILE` | `/data/uzquest.db` | Keeps the database on the volume |
 | `TRUST_PROXY` | `1` | Rate limits per traveller, not per Railway proxy |
-| `MEET_CODES` | `{"tas-chorsu-meet":"…","tas-plov-meet":"…","sam-siy-meet":"…","sam-kon-meet":"…"}` | Secret words agreed with the partners. **Not** the public demo words. The server refuses to start without a word for every meet quest |
+| `MEET_CODES` | `{"tas-chorsu-meet":"…","tas-plov-meet":"…","sam-siy-meet":"…","sam-kon-meet":"…","bux-tok-meet":"…","bux-lya-meet":"…"}` | Secret words agreed with the partners. **Not** the public demo words. The server refuses to start without a word for every meet quest |
 | `TELEGRAM_BOT_TOKEN` | from @BotFather (optional) | Enables "Log in with Telegram". Do not set a webhook for this bot |
 | `ANTHROPIC_API_KEY` | (optional) | Lets Hamroh answer with Claude instead of its offline replies |
 

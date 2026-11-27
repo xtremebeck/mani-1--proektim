@@ -40,13 +40,13 @@ describe("a traveller who finishes Tashkent", () => {
     assert.equal((await localState(page)).rewards[tashkent.id].voucher, voucher);
   });
 
-  test("the wallet lists every Tashkent coupon and keeps Samarkand's locked", async () => {
+  test("the wallet lists every Tashkent coupon and keeps the other cities' locked", async () => {
     await page.goto(`${server.base}/app/#/rewards`);
     await page.waitForSelector(".coupon-list");
     const unlocked = await page.locator("a.coupon:not(.locked)").count();
     const locked = await page.locator("a.coupon.locked").count();
     assert.equal(unlocked, OFFERS.filter((o) => o.cityId === "tashkent").length);
-    assert.equal(locked, OFFERS.filter((o) => o.cityId === "samarkand").length);
+    assert.equal(locked, OFFERS.filter((o) => o.cityId !== "tashkent").length);
     assert.match(await page.locator(".voucher").first().textContent(), /^UZQ-TAS-/);
   });
 
@@ -118,6 +118,48 @@ describe("a traveller who finishes Tashkent", () => {
       request.onsuccess = () => { const all = request.result.transaction("photos").objectStore("photos").getAll(); all.onsuccess = () => resolve(all.result.length); };
     }));
     assert.equal(photoCount, 0);
+  });
+
+  test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });
+});
+
+describe("a traveller who finishes Bukhara", () => {
+  const bukhara = CITIES.find((city) => city.id === "bukhara");
+  let server, context, page, errors;
+  before(async () => {
+    server = await start();
+    context = await newContext(browser);
+    ({ page, errors } = await openPage(context));
+    await onboard(page, server.base, { cityId: bukhara.id });
+    for (const place of bukhara.places) await playPlace(page, server.base, place);
+  });
+  after(async () => { await context?.close(); await server?.stop(); });
+
+  test("the story ends at Lyabi-Hauz and the city gives a Bukhara voucher", async () => {
+    assert.match(await page.locator(".finale").textContent(), /seven coins/i);
+    await page.goto(`${server.base}/app/#/city/${bukhara.id}`);
+    await page.waitForSelector(".certificate");
+    assert.equal(await page.locator(".certificate li").count(), bukhara.places.length);
+    await page.locator("[data-claim]").click();
+    assert.match((await page.locator(".voucher").textContent()).trim(), /^UZQ-BUX-/);
+  });
+
+  test("the server accepted every quest, including both secret words", async () => {
+    await waitSynced(page);
+    const deviceId = await page.evaluate(() => JSON.parse(localStorage.getItem("uzq2-device")));
+    const { state } = readDevice(server.dbFile, deviceId);
+    const quests = bukhara.places.flatMap((place) => place.quests.map((quest) => quest.id));
+    assert.deepEqual(quests.filter((id) => !state.quests[id]), []);
+    assert.ok(state.rewards.bukhara, "the voucher reached the server");
+  });
+
+  test("the passport shows the Bukhara badge and Afandi's stamp", async () => {
+    await page.goto(`${server.base}/app/#/passport`);
+    await page.waitForSelector(".stamp-grid");
+    // Every badge and stamp is listed; only earned ones are "on".
+    assert.ok((await page.locator(".badge.on b").allTextContents()).includes("Sage of Bukhara"));
+    assert.ok((await page.locator(".mini-stamp.gift.on b").allTextContents()).includes("Afandi's Friend"));
+    assert.equal((await page.locator(".badge.on b").allTextContents()).includes("Silk Road Voyager"), false, "one city is not two");
   });
 
   test("no JavaScript errors in the app", () => { assert.deepEqual(errors, []); });

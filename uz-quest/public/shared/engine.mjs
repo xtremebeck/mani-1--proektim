@@ -251,7 +251,8 @@ export function earnedBadges(state) {
     "first-place": Object.keys(state.places).length > 0,
     tashkent: complete("tashkent"),
     samarkand: complete("samarkand"),
-    "silk-road": complete("tashkent") && complete("samarkand"),
+    bukhara: complete("bukhara"),
+    "silk-road": CITIES.filter((city) => cityComplete(state, city)).length >= 2,
     foodie: doneOfType("taste") === totalOfType("taste"),
     scholar: doneOfType("quiz", "riddle") >= 6,
     photographer: doneOfType("photo") >= 5,
@@ -270,7 +271,8 @@ export function earnedGiftStamps(state) {
     "treasure-hunter": done.some((d) => d.quest.type === "hunt"),
     "first-deal": Object.keys(state.coupons ?? {}).length > 0,
     courier: cityComplete(state, findCity("tashkent")),
-    "star-keeper": cityComplete(state, findCity("samarkand"))
+    "star-keeper": cityComplete(state, findCity("samarkand")),
+    "afandi-friend": cityComplete(state, findCity("bukhara"))
   };
   return GIFT_STAMPS.filter((stamp) => rules[stamp.id]).map((stamp) => stamp.id);
 }

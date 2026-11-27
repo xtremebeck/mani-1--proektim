@@ -1,6 +1,6 @@
 // Offline support: app shell is precached; CDN libraries are cached on first use.
 // Bump CACHE whenever shipped files change.
-const CACHE = "uzquest-v14";
+const CACHE = "uzquest-v15";
 const SHELL = [
   "./", "index.html", "landing.css", "landing.mjs",
   "app/", "app/index.html", "app/app.css", "app/app.mjs", "app/i18n.mjs", "app/local-guide.mjs",
@@ -8,7 +8,7 @@ const SHELL = [
   "app/components/cards.mjs",
   "app/screens/city.mjs", "app/screens/done.mjs", "app/screens/explore.mjs", "app/screens/guide.mjs", "app/screens/home.mjs", "app/screens/hunt.mjs", "app/screens/passport.mjs", "app/screens/photos.mjs", "app/screens/place.mjs", "app/screens/profile.mjs", "app/screens/rewards.mjs", "app/screens/welcome.mjs",
   "shared/content.mjs", "shared/engine.mjs", "shared/languages.mjs", "shared/lang/tr.mjs", "shared/lang/zh.mjs", "manifest.webmanifest",
-  "assets/app-icon.svg", "assets/tashkent-hero.svg", "assets/registan-hero.jpg"
+  "assets/app-icon.svg", "assets/tashkent-hero.svg", "assets/registan-hero.jpg", "assets/bukhara-hero.svg"
 ];
 const RUNTIME_HOSTS = ["cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 

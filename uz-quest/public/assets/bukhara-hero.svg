@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a3f6b"/>
+      <stop offset=".4" stop-color="#c8735a"/>
+      <stop offset=".7" stop-color="#f0b56e"/>
+      <stop offset="1" stop-color="#f7dca8"/>
+    </linearGradient>
+    <radialGradient id="sun" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#fff4d6"/>
+      <stop offset=".55" stop-color="#ffd27a"/>
+      <stop offset="1" stop-color="#ffd27a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brick" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a5634"/>
+      <stop offset="1" stop-color="#5c3520"/>
+    </linearGradient>
+    <linearGradient id="near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a2a17"/>
+      <stop offset="1" stop-color="#2b170b"/>
+    </linearGradient>
+    <linearGradient id="dome" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4cc3d9"/>
+      <stop offset="1" stop-color="#0f6e86"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f7f7a"/>
+      <stop offset="1" stop-color="#123b3a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#sky)"/>
+  <circle cx="300" cy="400" r="230" fill="url(#sun)"/>
+  <circle cx="300" cy="400" r="72" fill="#fff0c4"/>
+
+  <!-- birds -->
+  <g fill="none" stroke="#3a2418" stroke-width="3" stroke-linecap="round" opacity=".55">
+    <path d="M760 170q12-10 24 0q12-10 24 0"/>
+    <path d="M820 140q9-8 18 0q9-8 18 0"/>
+    <path d="M180 220q10-8 20 0q10-8 20 0"/>
+  </g>
+
+  <!-- Ark: sloping fortress walls on the left -->
+  <g fill="url(#brick)">
+    <path d="M0 470 L40 460 L70 600 L0 600 Z"/>
+    <path d="M40 470 L190 470 L215 600 L60 600 Z"/>
+    <rect x="70" y="440" width="22" height="34" rx="10"/>
+    <rect x="150" y="440" width="22" height="34" rx="10"/>
+    <path d="M104 520 h36 v80 h-36 z" fill="#3b2114"/>
+  </g>
+
+  <!-- Kalyan Minaret -->
+  <g>
+    <path d="M560 600 L574 170 L626 170 L640 600 Z" fill="#b07a4c"/>
+    <g stroke="#7a4b2c" stroke-width="5" opacity=".8">
+      <line x1="566" y1="520" x2="634" y2="520"/>
+      <line x1="569" y1="430" x2="631" y2="430"/>
+      <line x1="571" y1="340" x2="629" y2="340"/>
+      <line x1="573" y1="250" x2="627" y2="250"/>
+    </g>
+    <rect x="562" y="140" width="76" height="34" rx="4" fill="#c58e5a"/>
+    <g fill="#5c3520">
+      <rect x="572" y="148" width="10" height="20" rx="5"/>
+      <rect x="588" y="148" width="10" height="20" rx="5"/>
+      <rect x="604" y="148" width="10" height="20" rx="5"/>
+      <rect x="620" y="148" width="10" height="20" rx="5"/>
+    </g>
+    <path d="M566 140 q34-34 68 0z" fill="#a46b3f"/>
+  </g>
+
+  <!-- Kalyan Mosque dome and portal -->
+  <g>
+    <rect x="660" y="470" width="220" height="130" fill="url(#brick)"/>
+    <path d="M730 470 q40-110 80 0z" fill="url(#dome)"/>
+    <rect x="726" y="462" width="88" height="12" fill="#c58e5a"/>
+    <rect x="900" y="430" width="120" height="170" fill="#9a6440"/>
+    <path d="M930 600 v-110 q30-40 60 0 v110z" fill="#3b2114"/>
+    <path d="M930 490 q30-40 60 0" fill="none" stroke="url(#dome)" stroke-width="8"/>
+  </g>
+
+  <!-- Chor Minor: four towers with blue domes -->
+  <g>
+    <rect x="1040" y="500" width="130" height="100" fill="#a8744a"/>
+    <path d="M1085 500 q20-40 40 0z" fill="url(#dome)"/>
+    <g fill="#b98458">
+      <rect x="1030" y="440" width="26" height="160"/>
+      <rect x="1154" y="440" width="26" height="160"/>
+    </g>
+    <g fill="url(#dome)">
+      <path d="M1028 442 q15-34 30 0z"/>
+      <path d="M1152 442 q15-34 30 0z"/>
+    </g>
+  </g>
+
+  <!-- near ground and Lyabi-Hauz pool -->
+  <rect x="0" y="600" width="1200" height="200" fill="url(#near)"/>
+  <path d="M120 660 h960 q40 0 40 30 v40 q0 30 -40 30 h-960 q-40 0 -40 -30 v-40 q0 -30 40 -30z" fill="url(#water)"/>
+  <g stroke="#7fd3c8" stroke-width="3" stroke-linecap="round" opacity=".5">
+    <line x1="240" y1="690" x2="340" y2="690"/>
+    <line x1="560" y1="705" x2="640" y2="705"/>
+    <line x1="820" y1="688" x2="940" y2="688"/>
+    <line x1="420" y1="728" x2="500" y2="728"/>
+  </g>
+  <!-- the minaret's reflection -->
+  <path d="M572 668 L578 760 L622 760 L628 668 Z" fill="#b07a4c" opacity=".25"/>
+
+  <!-- mulberry trees -->
+  <g fill="#1f3b22">
+    <circle cx="60" cy="640" r="46"/>
+    <circle cx="110" cy="620" r="38"/>
+    <circle cx="1140" cy="640" r="46"/>
+    <circle cx="1090" cy="622" r="36"/>
+  </g>
+</svg>
