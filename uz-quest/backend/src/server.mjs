@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
 import { mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,6 +68,12 @@ async function dailyBackup() {
   const names = (await readdir(backupDir)).filter((file) => /^uzquest-\d{4}-\d{2}-\d{2}\.db$/.test(file)).sort();
   if (!names.includes(name)) { await snapshot(path.join(backupDir, name)); names.push(name); }
   for (const old of names.slice(0, -backupKeep)) await rm(path.join(backupDir, old), { force: true });
+  // A download's copy is removed when it is sent; one left by a crash is removed after a day.
+  for (const file of await readdir(backupDir)) {
+    if (!file.startsWith("download-")) continue;
+    const full = path.join(backupDir, file);
+    if (Date.now() - (await stat(full)).mtimeMs > 86_400_000) await rm(full, { force: true });
+  }
 }
 const runDailyBackup = () => dailyBackup().catch((error) => console.error("Daily backup failed:", error.message));
 runDailyBackup();
@@ -75,13 +82,19 @@ setInterval(runDailyBackup, 60 * 60_000).unref();
 async function sendBackup(res, id) {
   await mkdir(backupDir, { recursive: true });
   const file = path.join(backupDir, `download-${id}.db`);
-  await snapshot(file);
-  const { size } = await stat(file);
   const name = `uzquest-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-")}.db`;
-  res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": "application/vnd.sqlite3", "Content-Length": size, "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store", "X-Request-Id": id });
-  const stream = createReadStream(file);
-  stream.on("close", () => rm(file, { force: true }).catch(() => {}));
-  stream.pipe(res);
+  // The copy is removed however this ends; pipeline also closes it when the admin cancels the download.
+  try {
+    await snapshot(file);
+    const { size } = await stat(file);
+    res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": "application/vnd.sqlite3", "Content-Length": size, "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store", "X-Request-Id": id });
+    await pipeline(createReadStream(file), res);
+  } catch (error) {
+    if (!res.headersSent) throw error;
+  } finally {
+    await rm(file, { force: true });
+    await rm(`${file}.partial`, { force: true });
+  }
 }
 
 // Secret words for "meet a local" quests. They never ship to the browser: the partner's staff
