@@ -342,7 +342,9 @@ test("the admin can download a full backup, and the server keeps daily copies", 
     await writeFile(copy, Buffer.from(await response.arrayBuffer()));
     assert.ok(readDevice(copy, deviceId), "the download holds the traveller");
     const backups = path.join(server.dir, "backups");
-    const files = await readdir(backups);
+    // The server removes the download's copy just after sending it.
+    let files = [];
+    for (let i = 0; i < 50; i++) { files = await readdir(backups); if (files.length === 1) break; await new Promise((r) => setTimeout(r, 20)); }
     assert.deepEqual(files, [`uzquest-${new Date().toISOString().slice(0, 10)}.db`], "only today's copy; the download's temp file is gone");
   } finally { await server.stop(); }
 });
@@ -358,4 +360,19 @@ test("daily copies beyond BACKUP_KEEP are removed", async () => {
       assert.deepEqual((await readdir(dir)).sort(), ["notes.txt", "uzquest-2020-01-03.db", `uzquest-${new Date().toISOString().slice(0, 10)}.db`]);
     } finally { await server.stop(); }
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("a cancelled backup download leaves no copy behind", async () => {
+  const server = await start();
+  try {
+    const controller = new AbortController();
+    const response = await fetch(`${server.base}/api/v1/admin/backup`, { headers: { "x-admin-key": "uzquest-dev-admin" }, signal: controller.signal });
+    assert.equal(response.status, 200);
+    controller.abort();
+    const backups = path.join(server.dir, "backups");
+    let files = [];
+    for (let i = 0; i < 50; i++) { files = await readdir(backups); if (!files.some((file) => file.startsWith("download-"))) break; await new Promise((r) => setTimeout(r, 20)); }
+    assert.deepEqual(files.filter((file) => file.startsWith("download-")), []);
+    assert.equal((await fetch(`${server.base}/api/v1/health`)).status, 200, "the server keeps running");
+  } finally { await server.stop(); }
 });
