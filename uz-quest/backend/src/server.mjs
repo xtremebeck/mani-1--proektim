@@ -169,7 +169,35 @@ function rateLimit(req, bucket, max, { count = true } = {}) {
 setInterval(() => { const now = Date.now(); for (const [key, entry] of windows) if (entry.reset <= now) windows.delete(key); }, 60_000).unref();
 
 // The landing page embeds /app/ in an iframe, so framing is allowed for the same origin only.
-const SECURITY_HEADERS = { "X-Content-Type-Options": "nosniff", "X-Frame-Options": "SAMEORIGIN", "Referrer-Policy": "same-origin" };
+// The CSP lists every outside host the pages use: Leaflet from jsDelivr, OpenStreetMap tiles and
+// Google Fonts. Scripts only come from these files and jsDelivr, never inline, so injected markup
+// cannot run code. Styles allow inline because Leaflet and the screens set style attributes.
+// Photos are shown from the phone's own storage (blob: and data: URLs). The service worker
+// fetches the CDN and font files itself, so connect-src names them too.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https://tile.openstreetmap.org https://cdn.jsdelivr.net",
+  "media-src 'self' blob:",
+  "connect-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com",
+  "frame-src 'self'",
+  "frame-ancestors 'self'",
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'"
+].join("; ");
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff", "X-Frame-Options": "SAMEORIGIN", "Referrer-Policy": "same-origin",
+  "Content-Security-Policy": CSP,
+  // GPS and the camera are used by the app itself; nothing else may ask.
+  "Permissions-Policy": "geolocation=(self), camera=(self), microphone=(), payment=(), usb=()",
+  // Browsers only honour this over HTTPS (the hosted server); on plain local http it is ignored.
+  "Strict-Transport-Security": "max-age=31536000"
+};
 
 function send(res, status, body, id) {
   const payload = JSON.stringify(body);

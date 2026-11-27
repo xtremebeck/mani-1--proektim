@@ -106,6 +106,16 @@ test("stored events keep only known fields and responses carry security headers"
     const response = await post(server.base, "/api/v1/sync", { deviceId: "device-test-0004", events: [{ id: "evt-padded-start", type: "start", placeId: place.id, at: Date.now(), junk: "x".repeat(100000) }] });
     assert.equal((await response.json()).accepted.length, 1);
     assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    // Scripts only from the site and jsDelivr, never inline, and the page cannot be framed elsewhere.
+    const csp = response.headers.get("content-security-policy");
+    assert.match(csp, /script-src 'self' https:\/\/cdn\.jsdelivr\.net;/);
+    assert.doesNotMatch(csp.match(/script-src[^;]*/)[0], /unsafe-inline|unsafe-eval/);
+    assert.match(csp, /frame-ancestors 'self'/);
+    assert.match(csp, /object-src 'none'/);
+    assert.match(response.headers.get("permissions-policy"), /geolocation=\(self\), camera=\(self\)/);
+    assert.match(response.headers.get("strict-transport-security"), /max-age=\d+/);
+    const page = await fetch(`${server.base}/app/`);
+    assert.equal(page.headers.get("content-security-policy"), csp, "pages carry the same policy");
     const event = readDevice(server.dbFile, "device-test-0004").events[0];
     assert.equal(event.junk, undefined);
     assert.equal(event.placeId, place.id);
