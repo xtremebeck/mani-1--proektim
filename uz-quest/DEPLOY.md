@@ -46,7 +46,18 @@ HTTPS matters: phones only allow GPS and the camera on secure pages, so treasure
 - `https://<domain>/app/` opens the app; play a quest and open `https://<domain>/admin` with your `ADMIN_KEY` to see it arrive.
 - The deploy log's first line names the data file and says `secret words: the MEET_CODES variable`.
 
-Every push to `main` now redeploys the server, and GitHub Pages still publishes the static site. Railway restarts the service briefly on each deploy.
+## Deploying on every push
+
+CI deploys the server after the tests pass on `main` (the `server` job in `.github/workflows/pages.yml`). It deploys exactly the tested commit and fails if the deploy fails or the health check does not answer. GitHub Pages still publishes the static site. Railway restarts the service briefly on each deploy.
+
+It needs one secret, a Railway **project token**:
+
+1. Railway → the `uzquest` project → **Settings → Tokens** → create a token for the **production** environment.
+2. Save it in GitHub without showing it anywhere: `gh secret set RAILWAY_TOKEN --repo xtremebeck/mani-1--proektim`, then paste the token. Or use the repository's **Settings → Secrets and variables → Actions**.
+
+Without the secret the job only prints a notice. Do not also connect the repository in Railway's own settings, or every push deploys twice, the second time without waiting for the tests.
+
+The service and environment ids in the workflow are this project's; change them if you deploy to a new Railway project.
 
 ## Backups
 

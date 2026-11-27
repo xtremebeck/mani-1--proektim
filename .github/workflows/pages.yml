@@ -1,5 +1,5 @@
-# Tests UzQuest (uz-quest/) on every pull request, and publishes the website + web app
-# to GitHub Pages on every push to main once the tests pass.
+# Tests UzQuest (uz-quest/) on every pull request. On every push to main, once the tests pass,
+# publishes the website + web app to GitHub Pages and deploys the server to Railway.
 name: Deploy UzQuest to GitHub Pages
 
 on:
@@ -85,3 +85,36 @@ jobs:
       - id: deployment-retry
         if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
+
+  # Deploys the tested commit, not whatever main holds by then. Needs the RAILWAY_TOKEN secret
+  # (see uz-quest/DEPLOY.md); without it the job only says so, so forks and new clones still pass.
+  server:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Deploys run one at a time, in order; a newer push waits instead of cancelling a half-done one.
+    concurrency:
+      group: railway
+      cancel-in-progress: false
+    environment:
+      name: railway
+      url: https://uzquest-production.up.railway.app
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE_ID: ea08dcf7-89f8-4e9c-bc28-0d969aa0c98b
+      RAILWAY_ENVIRONMENT_ID: 39715708-ac19-4305-a5ab-104ef52f33d7
+      COMMIT: ${{ github.sha }}
+      HEALTH_URL: https://uzquest-production.up.railway.app/api/v1/health
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Deploy the server to Railway
+        working-directory: uz-quest
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::notice::RAILWAY_TOKEN is not set, so the server was not deployed. See uz-quest/DEPLOY.md."
+            exit 0
+          fi
+          node scripts/deploy-railway.mjs
