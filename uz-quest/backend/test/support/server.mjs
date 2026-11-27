@@ -14,14 +14,14 @@ export const DEV_CODES_FILE = path.resolve(path.dirname(serverFile), "../meet-co
 export const DEV_CODES = JSON.parse(readFileSync(DEV_CODES_FILE, "utf8"));
 
 // Starts a server on a fresh database. Resolves once it listens, or with the exit code if it quits.
-// DATA_FILE (the old JSON store to import) also points into the temp dir, so a test never picks
-// up the repository's own data/store.json.
+// DATA_FILE (the old JSON store to import) and MEET_CODES_FILE also point into the temp dir, so a
+// test never picks up the repository's own data/store.json or data/meet-codes.json.
 export async function start(env = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "uzq-test-"));
   const port = nextPort++;
   const dbFile = env.DATABASE_FILE ?? path.join(dir, "uzquest.db");
   const child = spawn(process.execPath, [serverFile], {
-    env: { PATH: process.env.PATH, PORT: String(port), DATABASE_FILE: dbFile, DATA_FILE: path.join(dir, "store.json"), ...env },
+    env: { PATH: process.env.PATH, PORT: String(port), DATABASE_FILE: dbFile, DATA_FILE: path.join(dir, "store.json"), MEET_CODES_FILE: path.join(dir, "meet-codes.json"), ...env },
     stdio: ["ignore", "pipe", "pipe"]
   });
   let output = "";

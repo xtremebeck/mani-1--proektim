@@ -260,6 +260,8 @@ describe("Turkish and Chinese", () => {
     const other = await browser.newContext({ viewport: { width: 400, height: 860 } });
     const fresh = await other.newPage();
     await fresh.goto(`${server.base}/app/`);
+    // allTextContents does not wait, so wait until the app has drawn the last button.
+    await fresh.locator("[data-lang]").nth(4).waitFor();
     const names = await fresh.locator("[data-lang]").allTextContents();
     assert.deepEqual(names, ["O'zbekcha", "English", "Русский", "Türkçe", "中文"]);
     await fresh.locator("[data-lang=zh]").click();
