@@ -472,4 +472,5 @@ const server = createServer(async (req, res) => {
 
 // Paths inside the project are shown relative to it, others in full.
 const shown = (file) => (!path.isAbsolute(file) || path.relative(appRoot, file).startsWith("..") ? file : path.relative(appRoot, file));
-server.listen(port, host, () => console.log(`UzQuest: http://${host}:${port}  (admin: /admin, test events: ${allowTest ? "on" : "off"}, telegram login: ${bot ? "on" : "off"}, secret words: ${shown(meetCodesSource)}, data: ${shown(databaseFile)})`));
+// PORT=0 lets the system pick a free port; the line shows the one actually used.
+server.listen(port, host, () => console.log(`UzQuest: http://${host}:${server.address().port}  (admin: /admin, test events: ${allowTest ? "on" : "off"}, telegram login: ${bot ? "on" : "off"}, secret words: ${shown(meetCodesSource)}, data: ${shown(databaseFile)})`));
