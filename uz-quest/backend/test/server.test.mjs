@@ -376,3 +376,34 @@ test("a cancelled backup download leaves no copy behind", async () => {
     assert.equal((await fetch(`${server.base}/api/v1/health`)).status, 200, "the server keeps running");
   } finally { await server.stop(); }
 });
+
+test("the server checks a treasure hunt's location but never keeps it", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "uzq-gps-"));
+  const dbFile = path.join(dir, "uzquest.db");
+  const deviceId = "device-gps-test-01";
+  // Standing 20 m from the Amir Timur treasure (radius 90 m).
+  const hunt = { id: "evt-gps-hunt", type: "quest", placeId: "amir-timur", questId: "tas-timur-hunt", lat: 41.3112, lng: 69.2798, accuracy: 12 };
+  try {
+    const first = await start({ DATABASE_FILE: dbFile });
+    try {
+      const response = await (await post(first.base, "/api/v1/sync", { deviceId, events: [
+        { id: "evt-gps-start", type: "start", placeId: "amir-timur", at: Date.now() - 1000 }, { ...hunt, at: Date.now() }
+      ] })).json();
+      assert.deepEqual(response.rejected, []);
+      assert.ok(response.state.quests["tas-timur-hunt"], "the hunt counts");
+      const stored = readDevice(dbFile, deviceId).events.find((event) => event.id === hunt.id);
+      assert.deepEqual([stored.lat, stored.lng, stored.accuracy], [41.3111, 69.2797, undefined], "stored with the treasure's coordinates");
+    } finally { first.child.kill(); }
+    // An event stored by an older server, with the traveller's real position, is cleaned at startup.
+    const { DatabaseSync } = await import("node:sqlite");
+    const db = new DatabaseSync(dbFile);
+    db.prepare("UPDATE events SET data = ? WHERE id = ?").run(JSON.stringify({ ...hunt, at: 1 }), hunt.id);
+    db.close();
+    const second = await start({ DATABASE_FILE: dbFile });
+    try {
+      assert.equal(second.exitCode, null, second.output());
+      const stored = readDevice(dbFile, deviceId).events.find((event) => event.id === hunt.id);
+      assert.deepEqual([stored.lat, stored.lng, stored.accuracy], [41.3111, 69.2797, undefined]);
+    } finally { second.child.kill(); }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

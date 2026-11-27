@@ -7,7 +7,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const serverFile = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src/server.mjs");
-let nextPort = 4300 + Math.floor(Math.random() * 500);
 
 // The public demo secret words. A production server needs its own file (MEET_CODES_FILE).
 export const DEV_CODES_FILE = path.resolve(path.dirname(serverFile), "../meet-codes.dev.json");
@@ -18,17 +17,21 @@ export const DEV_CODES = JSON.parse(readFileSync(DEV_CODES_FILE, "utf8"));
 // test never picks up the repository's own data/store.json or data/meet-codes.json.
 export async function start(env = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "uzq-test-"));
-  const port = nextPort++;
   const dbFile = env.DATABASE_FILE ?? path.join(dir, "uzquest.db");
   const child = spawn(process.execPath, [serverFile], {
-    env: { PATH: process.env.PATH, PORT: String(port), DATABASE_FILE: dbFile, DATA_FILE: path.join(dir, "store.json"), MEET_CODES_FILE: path.join(dir, "meet-codes.json"), ...env },
+    env: { PATH: process.env.PATH, PORT: "0", DATABASE_FILE: dbFile, DATA_FILE: path.join(dir, "store.json"), MEET_CODES_FILE: path.join(dir, "meet-codes.json"), ...env },
     stdio: ["ignore", "pipe", "pipe"]
   });
   let output = "";
   child.stderr.on("data", (chunk) => { output += chunk; });
-  const exitCode = await new Promise((resolve) => {
-    child.stdout.on("data", (chunk) => { if (String(chunk).includes("UzQuest:")) resolve(null); });
-    child.on("exit", (code) => resolve(code));
+  // The system picks a free port (PORT=0), so test files running side by side never collide.
+  // Resolves with the port once the server listens, or with the exit code if it quits first.
+  const { port, exitCode } = await new Promise((resolve) => {
+    child.stdout.on("data", (chunk) => {
+      const listening = /UzQuest: http:\/\/[^ ]*:(\d+)/.exec(String(chunk));
+      if (listening) resolve({ port: Number(listening[1]), exitCode: null });
+    });
+    child.on("exit", (code) => resolve({ port: null, exitCode: code }));
   });
   const base = `http://127.0.0.1:${port}`;
   return {
