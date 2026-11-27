@@ -1,6 +1,6 @@
 # UzQuest — Uzbekistan, One Quest at a Time
 
-UzQuest is a story-driven quest travel app for Tashkent and Samarkand, inspired by [SubQuester](https://www.subquester.app/).
+UzQuest is a story-driven quest travel app for Tashkent, Samarkand and Bukhara, inspired by [SubQuester](https://www.subquester.app/).
 
 | URL | What it is |
 |---|---|
@@ -14,12 +14,13 @@ UzQuest is a story-driven quest travel app for Tashkent and Samarkand, inspired 
 
 - **Tashkent — "The Silk Road Courier"** (8 chapters). Carry a sealed letter from the Khast Imam library across the city and deliver it at the TV Tower.
 - **Samarkand — "The Lost Star Map"** (7 chapters). Collect the 7 torn pieces of Ulugh Beg's star map and bring them back to the Observatory.
+- **Bukhara — "Afandi's Seven Coins"** (7 chapters). Win Khoja Nasreddin's bet: find the 7 gold coins he hid across the old town, from the Samanid Mausoleum to his statue at Lyabi-Hauz.
 
 Each chapter ends with a clue that leads to the next place. In some chapters, a local you meet gives you that direction.
 
 ### Quest types
 
-There are 59 quests across 15 places.
+There are 87 quests across 22 places.
 
 | Type | How it's completed | Rarity |
 |---|---|---|
@@ -38,8 +39,8 @@ XP by rarity: Common 30 · Rare 50 · Epic 80 · Legendary 150. Finishing a chap
 ### Rewards after quests and travel
 
 - **Stamps.** One per finished place, in the digital passport.
-- **Collectible cards.** 15 cards from Common to Legendary, one per place, each with a real fact.
-- **Gift stamps.** 8 special stamps for *how* you travel:
+- **Collectible cards.** 22 cards from Common to Legendary, one per place, each with a real fact.
+- **Gift stamps.** 9 special stamps for *how* you travel:
   - 🌅 Early Bird (before 9 am)
   - 🌇 Golden Hour (5–8 pm)
   - 🦉 Night Owl (after 8 pm)
@@ -48,9 +49,10 @@ XP by rarity: Common 30 · Rare 50 · Epic 80 · Legendary 150. Finishing a chap
   - 🎟️ First Deal (unlock your first coupon)
   - ✉️ The Courier (finish the Tashkent story)
   - 🌌 Star Keeper (finish the Samarkand story)
+  - 🪙 Afandi's Friend (finish the Bukhara story)
 - **Partner coupons.** Discounts at cafés, restaurants and shops. Each unlocks when you finish a certain place, a whole city, or reach a level. A coupon lasts 30 days and has its own code for the cashier. Partners redeem it in `/admin`, and each code works only once.
 - **City voucher.** Finishing a whole city gives a voucher for a medal and postcard.
-- Also 9 badges, 7 levels, a daily quest, and a 20-minute digital-detox timer.
+- Also 10 badges, 7 levels, a daily quest, and a 20-minute digital-detox timer.
 
 ⚠️ The 8 partner offers in `shared/content.mjs` (`OFFERS`) are **sample partners marked "(demo)"**. Replace them with real signed partners before launch.
 
@@ -69,7 +71,7 @@ The words **never ship to the browser**. Only the server knows them and checks t
 | Production (`NODE_ENV=production`) | The `MEET_CODES` variable (JSON), or the file `MEET_CODES_FILE`, default `data/meet-codes.json` (not in git). The server will not start without a word for every meet quest. |
 | Development | The same file if it exists, otherwise the public demo words in `backend/meet-codes.dev.json`. |
 
-The file maps quest ids to words, for example `{ "tas-chorsu-meet": "…", "tas-plov-meet": "…", "sam-siy-meet": "…", "sam-kon-meet": "…" }`. Spelling is forgiving, as with riddles.
+The file maps quest ids to words, for example `{ "tas-chorsu-meet": "…", "tas-plov-meet": "…", "sam-siy-meet": "…", "sam-kon-meet": "…", "bux-tok-meet": "…", "bux-lya-meet": "…" }`. Spelling is forgiving, as with riddles.
 
 ⚠️ **Do not reuse the demo words** (`zira`, `qozon`, `yulduz`, `qog'oz`). They are public in this repository and its history. Choose words that are not in the place's story (for example a word plus two digits), and change them if they leak.
 

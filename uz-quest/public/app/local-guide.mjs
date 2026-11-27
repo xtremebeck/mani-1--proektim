@@ -12,6 +12,11 @@ const TIPS = {
       uz: "Samarqandda mashhur Samarqand noni, Samarqand palovi (qatlam-qatlam, aralashtirilmaydi) va shashlik tatib ko'ring. Siyob bozorida quruq mevalarni sinab ko'ring.",
       en: "In Samarkand try the famous Samarkand bread, Samarkand-style plov (layered, not mixed) and shashlik. Sample dried fruit at Siab Bazaar.",
       ru: "В Самарканде попробуйте знаменитую самаркандскую лепёшку, самаркандский плов (слоями, не перемешивают) и шашлык. На Сиабском базаре — сухофрукты."
+    },
+    bukhara: {
+      uz: "Buxoroda Labi Hovuz bo'yidagi choyxonada ko'k choy va holva, tandir somsa va Buxoro palovini tatib ko'ring. Savdo gumbazlari atrofida shirinlik do'konlari ko'p.",
+      en: "In Bukhara try green tea and halva at a choyxona by Lyabi-Hauz, tandir somsa and Bukhara plov. The lanes around the trading domes are full of sweet shops.",
+      ru: "В Бухаре попробуйте зелёный чай с халвой в чайхане у Ляби-Хауза, тандырную самсу и бухарский плов. У торговых куполов много лавок со сладостями."
     }
   },
   transport: {
@@ -24,6 +29,11 @@ const TIPS = {
       uz: "Samarqand markazi piyoda yurish uchun qulay: Registon — Bibixonim — Siyob — Shohi Zinda bir yo'lda. Rasadxona va Konigilga Yandex Go taksida boring.",
       en: "Central Samarkand is walkable: Registan → Bibi-Khanym → Siab → Shah-i-Zinda sit on one line. Take a Yandex Go taxi to the Observatory and Konigil.",
       ru: "Центр Самарканда удобно обходить пешком: Регистан → Биби-Ханым → Сиаб → Шахи-Зинда на одной линии. До обсерватории и Конигила — такси Yandex Go."
+    },
+    bukhara: {
+      uz: "Buxoroning eski shahri kichik — hamma bekatlar piyoda yuriladi: Somoniylar bog'idan Labi Hovuzgacha taxminan 30 daqiqa. Toshkent va Samarqanddan Afrosiyob poyezdi qatnaydi.",
+      en: "Bukhara's old town is small — every stop is walkable: about 30 minutes from the Samanid park to Lyabi-Hauz. The Afrosiyob train runs here from Tashkent and Samarkand.",
+      ru: "Старый город Бухары небольшой — все остановки пешком: от парка Саманидов до Ляби-Хауза около 30 минут. Сюда ходит поезд «Афросиаб» из Ташкента и Самарканда."
     }
   },
   money: {

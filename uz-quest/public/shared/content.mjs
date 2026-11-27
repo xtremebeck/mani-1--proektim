@@ -455,6 +455,201 @@ export const CITIES = [
       { id: "sam-d-craft", title: tr("Hunarmand bilan suhbat", "Meet a craftsperson", "Встреча с мастером"), prompt: tr("Kulol, zardo'z yoki gilamdo'z bilan gaplashing.", "Chat with a potter, embroiderer or carpet weaver.", "Поговорите с гончаром, золотошвеем или ковроделом.") },
       { id: "sam-d-count", title: tr("Beshgacha sanang", "Count to five", "Считаем до пяти"), prompt: tr("O'zbekcha beshgacha sanashni o'rganing: bir, ikki, uch, to'rt, besh.", "Learn to count to five in Uzbek: bir, ikki, uch, to'rt, besh.", "Научитесь считать до пяти по-узбекски: бир, икки, уч, тўрт, беш.") }
     ]
+  },
+  {
+    id: "bukhara",
+    short: "BUX",
+    name: tr("Buxoro", "Bukhara", "Бухара"),
+    title: tr("Buxoro jumboqlari", "Riddles of Bukhara", "Загадки Бухары"),
+    tagline: tr("Ming yillik eski shahar ko'chalarida Afandi bilan bahslashing.", "Take on Afandi's bet in the lanes of a thousand-year-old city.", "Примите вызов Афанди в переулках тысячелетнего города."),
+    image: "../assets/bukhara-hero.svg",
+    story: {
+      title: tr("Afandining yetti tangasi", "Afandi's Seven Coins", "Семь монет Афанди"),
+      icon: "🪙",
+      intro: tr(
+        "Xo'ja Nasriddin Afandi bir xasis savdogar bilan bahs boyladi: yetti oltin tangani Buxoroda shunday yashiramanki, asrlar davomida hech kim topa olmaydi. Har bir tangani toping va ularni Labi Hovuzda Afandiga olib boring.",
+        "Khoja Nasreddin — Afandi — once bet a greedy merchant that he could hide seven gold coins in Bukhara where nobody would find them for centuries. Find every coin and bring them to Afandi at Lyabi-Hauz.",
+        "Ходжа Насреддин — Афанди — однажды поспорил с жадным купцом, что спрячет в Бухаре семь золотых монет так, что их веками никто не найдёт. Найдите все монеты и принесите их Афанди к Ляби-Хаузу."
+      ),
+      piece: tr("oltin tanga", "gold coin", "золотая монета"),
+      finale: tr("Yetti tanga ham topildi! Afandi eshagi ustida kuladi: \"Bahsni bir sayyoh yutishini bilardim.\"", "All seven coins are found! Afandi laughs from his donkey: \"I knew a traveller would win the bet.\"", "Все семь монет найдены! Афанди смеётся, сидя на ослике: «Я знал, что спор выиграет путешественник»."),
+      giftStamp: "afandi-friend"
+    },
+    reward: {
+      name: tr("Buxoro kashfiyotchisi", "Bukhara Explorer", "Исследователь Бухары"),
+      prize: tr("Cheklangan Buxoro medali va postcard", "Limited Bukhara medal and postcard", "Лимитированная медаль Бухары и открытка")
+    },
+    places: [
+      place({
+        id: "samanid", emoji: "🧱", colors: ["#c08a4e", "#4a2c12"], lat: 39.7764, lng: 64.4006, minutes: 40,
+        interests: ["history", "architecture"],
+        name: tr("Somoniylar maqbarasi", "Samanid Mausoleum", "Мавзолей Саманидов"),
+        chapter: tr("G'ishtdan to'qilgan sir", "A Secret Woven in Brick", "Тайна, сплетённая из кирпича"),
+        clue: tr("Eski shaharning g'arbiy chetidagi bog'dan boshlang: g'ishtlari to'qilgan matoga o'xshagan kichik kubni toping.", "Start in the park on the western edge of the old town: find a small cube whose bricks look like woven cloth.", "Начните в парке на западном краю старого города: найдите небольшой куб, кирпичи которого похожи на тканое полотно."),
+        tip: tr("Quyosh botishidan oldin keling — g'isht naqshlari soyada o'zgarib boradi.", "Come before sunset — the brick patterns change as the shadows move.", "Приходите перед закатом — узоры кирпича меняются вместе с тенями."),
+        story: tr("Bu maqbara Buxorodagi eng qadimiy binolardan biri. Afandi birinchi tangani shaharning eng keksa g'ishtlari orasiga yashirgan.", "This mausoleum is one of the oldest buildings in Bukhara. Afandi hid the first coin among the city's oldest bricks.", "Этот мавзолей — одно из старейших зданий Бухары. Первую монету Афанди спрятал среди самых старых кирпичей города."),
+        card: { icon: "🧱", rarity: "epic", name: tr("Somoniy g'ishti", "Samanid Brick", "Саманидский кирпич"), fact: tr("Maqbara 892–943-yillar oralig'ida qurilgan va Markaziy Osiyodagi eng qadimgi islomiy me'morchilik yodgorliklaridan biri.", "Built between 892 and 943, it is one of the oldest monuments of Islamic architecture in Central Asia.", "Построен между 892 и 943 годами — один из древнейших памятников исламской архитектуры в Центральной Азии.") },
+        quests: [
+          { id: "bux-sam-hunt", type: "hunt", lat: 39.7764, lng: 64.4006, radius: 90,
+            title: tr("Bog'dagi kub", "The cube in the park", "Куб в парке"),
+            prompt: tr("Bog' ichidan maqbarani toping. Telefon \"issiq-sovuq\" deb yo'l ko'rsatadi.", "Find the mausoleum inside the park. Your phone will say warmer or colder.", "Найдите мавзолей в парке. Телефон подскажет: теплее или холоднее.") },
+          { id: "bux-sam-quiz", type: "quiz",
+            title: tr("Qurilish siri", "Building secret", "Секрет постройки"),
+            prompt: tr("Maqbaraning devorlari nimadan qurilgan?", "What are the mausoleum's walls built from?", "Из чего построены стены мавзолея?"),
+            options: [tr("Pishgan g'isht", "Baked brick", "Обожжённый кирпич"), tr("Marmar", "Marble", "Мрамор"), tr("Yog'och", "Wood", "Дерево")], answer: 0 },
+          { id: "bux-sam-photo", type: "photo",
+            title: tr("G'isht naqshi", "Brick pattern", "Кирпичный узор"),
+            prompt: tr("Devorga yaqin keling va g'ishtlar hosil qilgan naqshni suratga oling.", "Get close to a wall and photograph the pattern the bricks make.", "Подойдите к стене и сфотографируйте узор, который образуют кирпичи.") }
+        ]
+      }),
+      place({
+        id: "bolo-hauz", emoji: "🪵", colors: ["#3c9d8f", "#123a35"], lat: 39.7789, lng: 64.4075, minutes: 30,
+        interests: ["architecture", "hidden"],
+        name: tr("Bolo Hovuz masjidi", "Bolo-Hauz Mosque", "Мечеть Боло-Хауз"),
+        chapter: tr("Qirq ustun", "The Forty Columns", "Сорок колонн"),
+        clue: tr("Bog'dan sharqqa yuring: hovuz bo'yida ingichka yog'och ustunlari suvda aks etgan masjid bor.", "Walk east from the park: by a pool stands a mosque whose slender wooden columns are mirrored in the water.", "Идите от парка на восток: у пруда стоит мечеть, чьи тонкие деревянные колонны отражаются в воде."),
+        tip: tr("Shiftga qarashni unutmang — u yorqin ranglar bilan bezatilgan.", "Don't forget to look up — the ceiling is painted in bright colours.", "Не забудьте посмотреть вверх — потолок расписан яркими красками."),
+        story: tr("Masjid amirlar qal'asining ro'parasida, 1712-yilda qurilgan. Ikkinchi tanga suvda ikki barobar ko'payadigan ustunlar orasida.", "The mosque was built in 1712, right opposite the emirs' fortress. The second coin waits among columns that double in the water.", "Мечеть построена в 1712 году напротив крепости эмиров. Вторая монета ждёт среди колонн, которые удваиваются в воде."),
+        card: { icon: "🪵", rarity: "rare", name: tr("Yog'och ayvon", "The Wooden Iwan", "Деревянный айван"), fact: tr("Ayvondagi 20 ta o'ymakor yog'och ustun 20-asr boshida qo'shilgan.", "The 20 carved wooden columns of the iwan were added in the early 20th century.", "20 резных деревянных колонн айвана добавили в начале XX века.") },
+        quests: [
+          { id: "bux-bol-riddle", type: "riddle",
+            title: tr("Ustunlar hisobi", "Counting columns", "Счёт колонн"),
+            prompt: tr("Ayvonda 20 ta ustun bor. Hovuzdagi aksi bilan birga ular nechta bo'lib ko'rinadi? Raqam yoki so'z bilan yozing.", "The iwan has 20 columns. With their reflection in the pool, how many seem to stand there? Type a number or a word.", "У айвана 20 колонн. Сколько их кажется вместе с отражением в пруду? Напишите число или слово."),
+            answers: ["40", "forty", "qirq", "сорок", "kırk", "kirk", "四十"] },
+          { id: "bux-bol-photo", type: "photo",
+            title: tr("Suvdagi aks", "Mirror in the water", "Отражение в воде"),
+            prompt: tr("Hovuz bo'yida pastroq turing va ustunlarni ularning aksi bilan birga suratga oling.", "Crouch by the pool and photograph the columns together with their reflection.", "Присядьте у пруда и сфотографируйте колонны вместе с их отражением.") },
+          { id: "bux-bol-find", type: "find",
+            title: tr("Rangli shift", "The painted ceiling", "Расписной потолок"),
+            prompt: tr("Ayvon shiftida qizil, yashil va oltin ranglar uchrashgan joyni toping.", "Find a spot on the iwan ceiling where red, green and gold meet.", "Найдите на потолке айвана место, где встречаются красный, зелёный и золотой.") }
+        ]
+      }),
+      place({
+        id: "ark", emoji: "🏰", colors: ["#b9774a", "#3b1f10"], lat: 39.7778, lng: 64.4106, minutes: 60,
+        interests: ["history"],
+        name: tr("Ark qal'asi", "Ark Fortress", "Крепость Арк"),
+        chapter: tr("Amirlar qal'asi", "The Emirs' Citadel", "Цитадель эмиров"),
+        clue: tr("Masjidning ro'parasiga qarang: ulkan qiya devorli qal'a darvozasi sizni kutmoqda.", "Look across from the mosque: the gate of a huge fortress with sloping walls is waiting.", "Посмотрите напротив мечети: вас ждут ворота огромной крепости с наклонными стенами."),
+        tip: tr("Darvozaga olib boradigan qiya yo'lakdan sekin chiqing — tepadan ko'rinish ajoyib.", "Climb the ramp to the gate slowly — the view from the top is worth it.", "Поднимайтесь по пандусу к воротам не спеша — вид сверху того стоит."),
+        story: tr("Asrlar davomida Buxoro hukmdorlari shu devorlar ortida yashagan. Afandi uchinchi tangani amirning o'z ostonasiga yashirishga jur'at etgan.", "For centuries Bukhara's rulers lived behind these walls. Afandi dared to hide the third coin on the emir's own doorstep.", "Веками правители Бухары жили за этими стенами. Третью монету Афанди осмелился спрятать у самого порога эмира."),
+        card: { icon: "🏰", rarity: "rare", name: tr("Ark darvozasi", "The Ark Gate", "Ворота Арка"), fact: tr("Buxoroning so'nggi amiri Olimxon 1920-yilda Arkni tashlab ketgan.", "Alim Khan, the last emir of Bukhara, left the Ark in 1920.", "Алим-хан, последний эмир Бухары, покинул Арк в 1920 году.") },
+        quests: [
+          { id: "bux-ark-quiz", type: "quiz",
+            title: tr("Qal'a egalari", "Who lived here?", "Кто здесь жил?"),
+            prompt: tr("Ark asrlar davomida kimning qarorgohi bo'lgan?", "For centuries the Ark was the residence of whom?", "Чьей резиденцией веками был Арк?"),
+            options: [tr("Buxoro hukmdorlari", "The rulers of Bukhara", "Правители Бухары"), tr("Karvon savdogarlari", "Caravan merchants", "Караванные купцы"), tr("Rohiblar", "Monks", "Монахи")], answer: 0 },
+          { id: "bux-ark-photo", type: "photo",
+            title: tr("Darvozagacha yo'l", "The road to the gate", "Дорога к воротам"),
+            prompt: tr("Pastdan qiya yo'lak va darvozani bitta kadrga oling.", "From below, capture the ramp and the gate in one frame.", "Снизу поймайте пандус и ворота в один кадр.") }
+        ]
+      }),
+      place({
+        id: "poi-kalon", emoji: "🗼", colors: ["#d49a3a", "#4d2e08"], lat: 39.7759, lng: 64.4148, minutes: 60,
+        interests: ["history", "architecture"],
+        name: tr("Poi Kalon majmuasi", "Po-i-Kalyan Ensemble", "Ансамбль Пои-Калян"),
+        chapter: tr("Buyuk minora", "The Great Minaret", "Великий минарет"),
+        clue: tr("Qal'adan janubi-sharqqa — shahar ustida ko'tarilgan eng baland minoraga qarab yuring.", "Head south-east from the fortress, towards the tallest tower rising over the city.", "Идите от крепости на юго-восток, к самой высокой башне над городом."),
+        tip: tr("Kechqurun keling — minora va madrasa yoritilganda maydon sehrli bo'ladi.", "Come back in the evening — when the minaret and madrasa are lit, the square is magical.", "Вернитесь вечером — когда минарет и медресе подсвечены, площадь волшебна."),
+        story: tr("Rivoyatlarga ko'ra, Chingizxon ham bu minoraning oldida bosh egib, uni buzdirmagan. To'rtinchi tanga minoraning soyasida.", "Legend says even Genghis Khan bowed before this minaret and spared it. The fourth coin lies in its shadow.", "Легенда гласит, что даже Чингисхан склонил голову перед этим минаретом и пощадил его. Четвёртая монета — в его тени."),
+        card: { icon: "🗼", rarity: "legendary", name: tr("Minorai Kalon", "The Kalyan Minaret", "Минарет Калян"), fact: tr("Minora 1127-yilda qurilgan va balandligi 45 metrdan oshadi.", "The minaret was built in 1127 and stands more than 45 metres tall.", "Минарет построен в 1127 году, его высота — более 45 метров.") },
+        quests: [
+          { id: "bux-poi-hunt", type: "hunt", lat: 39.7759, lng: 64.4148, radius: 80,
+            title: tr("Ikki peshtoq orasida", "Between two portals", "Между двумя порталами"),
+            prompt: tr("Masjid va madrasa peshtoqlari bir-biriga qaragan maydon markazini toping. Telefon \"issiq-sovuq\" deb yo'l ko'rsatadi.", "Find the centre of the square where the mosque and madrasa portals face each other. Your phone will say warmer or colder.", "Найдите центр площади, где порталы мечети и медресе смотрят друг на друга. Телефон подскажет: теплее или холоднее.") },
+          { id: "bux-poi-timeline", type: "timeline",
+            title: tr("Uch bino", "Three buildings", "Три здания"),
+            prompt: tr("Binolarni qurilgan vaqti bo'yicha tartiblang — eng eskisidan boshlab.", "Put the buildings in the order they were built — oldest first.", "Расставьте здания по времени постройки — от самого старого."),
+            items: [tr("Mir Arab madrasasi", "Mir-i-Arab Madrasa", "Медресе Мири-Араб"), tr("Minorai Kalon", "Kalyan Minaret", "Минарет Калян"), tr("Masjidi Kalon", "Kalyan Mosque", "Мечеть Калян")],
+            order: [1, 2, 0] },
+          { id: "bux-poi-quiz", type: "quiz",
+            title: tr("Omon qolgan minora", "The spared minaret", "Пощажённый минарет"),
+            prompt: tr("Rivoyatga ko'ra, qaysi bosqinchi minorani buzdirmagan?", "According to legend, which conqueror spared the minaret?", "По легенде, какой завоеватель пощадил минарет?"),
+            options: [tr("Iskandar Zulqarnayn", "Alexander the Great", "Александр Македонский"), tr("Chingizxon", "Genghis Khan", "Чингисхан"), tr("Napoleon", "Napoleon", "Наполеон")], answer: 1 },
+          { id: "bux-poi-photo", type: "photo",
+            title: tr("Osmon tomon", "Up to the sky", "До самого неба"),
+            prompt: tr("Minorani to'liq, poydevoridan tepasigacha bitta kadrga sig'diring.", "Fit the whole minaret, from base to top, in one frame.", "Уместите весь минарет, от основания до вершины, в один кадр.") }
+        ]
+      }),
+      place({
+        id: "toki", emoji: "🔨", colors: ["#9a6b3f", "#2f1d0c"], lat: 39.7757, lng: 64.4170, minutes: 45,
+        interests: ["culture", "hidden"],
+        name: tr("Savdo gumbazlari", "Trading Domes", "Торговые купола"),
+        chapter: tr("Gumbazlar ostidagi bozor", "The Market Under the Domes", "Рынок под куполами"),
+        clue: tr("Maydondan sharqqa — ko'chalar chorrahasini qoplagan katta g'isht gumbazga boring.", "Go east from the square, to a big brick dome built over a crossroads.", "Идите с площади на восток, к большому кирпичному куполу над перекрёстком."),
+        tip: tr("Savdolashish odatiy hol — lekin doim tabassum bilan.", "Bargaining is normal here — just always with a smile.", "Торговаться здесь нормально — только всегда с улыбкой."),
+        story: tr("Ipak yo'li karvonlari shu gumbazlar ostida to'xtagan: birida zargarlar, boshqasida sarroflar, uchinchisida do'ppifurushlar savdo qilgan. Beshinchi tanga temirchining ustaxonasida.", "Silk Road caravans stopped under these domes: jewellers traded under one, money changers under another, cap sellers under a third. The fifth coin is in a blacksmith's workshop.", "Караваны Шёлкового пути останавливались под этими куполами: под одним торговали ювелиры, под другим менялы, под третьим продавцы шапок. Пятая монета — в мастерской кузнеца."),
+        card: { icon: "🦢", rarity: "rare", name: tr("Laylak qaychi", "The Stork Scissors", "Ножницы-аист"), fact: tr("Buxoro temirchilari laylak shaklidagi qaychilari bilan mashhur.", "Bukhara's blacksmiths are famous for scissors shaped like a stork.", "Бухарские кузнецы славятся ножницами в форме аиста.") },
+        quests: [
+          { id: "bux-tok-meet", type: "meet",
+            title: tr("Temirchi Karim aka", "Karim the blacksmith", "Кузнец Карим"),
+            person: { emoji: "👨‍🏭", name: tr("Karim aka", "Karim aka", "Карим ака"), where: tr("Gumbazlar yonidagi temirchilik ustaxonasi", "The blacksmith's workshop by the domes", "Кузница рядом с куполами") },
+            prompt: tr("Ustaxonadan Karim akani toping va \"Afandining tangasini izlayapman\" deng. U sizga maxfiy so'zni aytadi.", "Find Karim aka in the workshop and say \"I'm looking for Afandi's coin\". He will tell you a secret word.", "Найдите Карима ака в мастерской и скажите «Я ищу монету Афанди». Он скажет секретное слово."),
+            reveal: tr("\"Afandi tangani menga qaychi evaziga qoldirgan edi. Keyingisi to'rt minorali uyda — tor ko'chalar orqali sharqqa yuring.\"", "\"Afandi left the coin with me in exchange for a pair of scissors. The next one is at the house with four towers — walk east through the narrow lanes.\"", "«Афанди оставил монету у меня в обмен на ножницы. Следующая — у дома с четырьмя башнями: идите на восток по узким переулкам»."),
+            },
+          { id: "bux-tok-find", type: "find",
+            title: tr("Laylak qaychi", "The stork scissors", "Ножницы-аист"),
+            prompt: tr("Laylak shaklidagi qaychini toping — uning tumshug'i qaychining tig'i.", "Find a pair of scissors shaped like a stork — its beak is the blade.", "Найдите ножницы в форме аиста — его клюв и есть лезвие.") },
+          { id: "bux-tok-quiz", type: "quiz",
+            title: tr("Gumbaz nomi", "Name of the dome", "Имя купола"),
+            prompt: tr("\"Toki Zargaron\" gumbazi ostida kimlar savdo qilgan?", "Who traded under the Toki Zargaron dome?", "Кто торговал под куполом Токи-Заргарон?"),
+            options: [tr("Zargarlar", "Jewellers", "Ювелиры"), tr("Do'ppifurushlar", "Cap sellers", "Продавцы шапок"), tr("Sarroflar", "Money changers", "Менялы")], answer: 0 }
+        ]
+      }),
+      place({
+        id: "chor-minor", emoji: "🕌", colors: ["#2f8fc4", "#0d2c45"], lat: 39.7753, lng: 64.4278, minutes: 30,
+        interests: ["hidden", "architecture"],
+        name: tr("Chor Minor", "Chor Minor", "Чор-Минор"),
+        chapter: tr("To'rt minorali uy", "The House of Four Towers", "Дом четырёх башен"),
+        clue: tr("Karim aka aytgandek: tor ko'chalar orqali sharqqa, to'rtta ko'k gumbazli minorasi bor kichik binoga.", "Just as Karim said: east through the narrow lanes, to a small building with four towers topped by blue domes.", "Как сказал Карим: на восток по узким переулкам, к небольшому зданию с четырьмя башнями под голубыми куполами."),
+        tip: tr("Mahalla ichida joylashgan — yo'lni so'rashdan tortinmang.", "It hides inside a residential quarter — don't be shy to ask the way.", "Он спрятан в жилом квартале — не стесняйтесь спросить дорогу."),
+        story: tr("1807-yilda boy savdogar Xalif Niyozqul qurdirgan bu bino yo'qolgan madrasaning darvozaxonasi edi. Oltinchi tanga to'rt minora orasida.", "Built in 1807 by the rich merchant Khalif Niyazkul, this was the gatehouse of a vanished madrasa. The sixth coin hides between the four towers.", "Построенное в 1807 году богатым купцом Халифом Ниязкулом, это здание было воротами исчезнувшего медресе. Шестая монета — между четырьмя башнями."),
+        card: { icon: "💙", rarity: "epic", name: tr("To'rt minora", "Four Towers", "Четыре башни"), fact: tr("\"Chor Minor\" fors-tojik tilida \"to'rt minora\" degani.", "\"Chor Minor\" means \"four minarets\" in Persian and Tajik.", "«Чор-Минор» по-персидски и по-таджикски значит «четыре минарета».") },
+        quests: [
+          { id: "bux-cho-riddle", type: "riddle",
+            title: tr("Nom siri", "Secret of the name", "Тайна названия"),
+            prompt: tr("\"Chor Minor\" nomida nechta minora yashiringan? Raqam yoki so'z bilan yozing.", "How many minarets hide in the name \"Chor Minor\"? Type a number or a word.", "Сколько минаретов спрятано в названии «Чор-Минор»? Напишите число или слово."),
+            answers: ["4", "four", "to'rt", "tort", "чор", "chor", "четыре", "dört", "dort", "四"] },
+          { id: "bux-cho-photo", type: "photo",
+            title: tr("To'rttalasi ham kadrda", "All four in frame", "Все четыре в кадре"),
+            prompt: tr("To'rtta minoraning hammasi ko'rinadigan burchakni toping va suratga oling.", "Find the angle where all four towers are visible and take the shot.", "Найдите ракурс, где видны все четыре башни, и сделайте снимок.") }
+        ]
+      }),
+      place({
+        id: "lyabi-hauz", emoji: "🫖", colors: ["#2aa58a", "#0b3a30"], lat: 39.7739, lng: 64.4200, minutes: 60,
+        interests: ["food", "culture"],
+        name: tr("Labi Hovuz", "Lyabi-Hauz", "Ляби-Хауз"),
+        chapter: tr("Afandi bilan uchrashuv", "Meeting Afandi", "Встреча с Афанди"),
+        clue: tr("Oxirgi bekat: eski tut daraxtlari soya solgan hovuz bo'yiga qayting. Afandi eshagi bilan shu yerda kutmoqda.", "The last stop: head back to a pool shaded by old mulberry trees. Afandi is waiting there with his donkey.", "Последняя остановка: вернитесь к пруду в тени старых тутовых деревьев. Там с осликом ждёт Афанди."),
+        tip: tr("Hovuz bo'yidagi choyxonada bir choynak choy bilan dam oling.", "Rest with a pot of tea at a choyxona by the pool.", "Отдохните с чайником чая в чайхане у пруда."),
+        story: tr("\"Labi Hovuz\" — \"hovuz bo'yi\" degani. 1620-yilda qurilgan hovuz atrofida madrasalar va xonaqoh joylashgan. Yettinchi tanga — va bahs yutildi.", "\"Lyabi-Hauz\" means \"by the pool\". Madrasas and a khanaka stand around the pool, which was built in 1620. The seventh coin — and the bet is won.", "«Ляби-Хауз» значит «у пруда». Вокруг пруда, построенного в 1620 году, стоят медресе и ханака. Седьмая монета — и спор выигран."),
+        card: { icon: "🪙", rarity: "legendary", name: tr("Afandining tangasi", "Afandi's Coin", "Монета Афанди"), fact: tr("Nodir Devonbegi madrasasi peshtoqida inson yuzli quyoshga uchayotgan ikki afsonaviy qush tasvirlangan.", "The portal of the Nadir Divan-Begi Madrasa shows two mythical birds flying towards a sun with a human face.", "На портале медресе Надир-Диванбеги изображены две мифические птицы, летящие к солнцу с человеческим лицом.") },
+        quests: [
+          { id: "bux-lya-meet", type: "meet",
+            title: tr("Choyxonachi Anvar aka", "Anvar the tea master", "Чайханщик Анвар"),
+            person: { emoji: "🧔", name: tr("Anvar aka", "Anvar aka", "Анвар ака"), where: tr("Hovuz bo'yidagi choyxona", "The choyxona by the pool", "Чайхана у пруда") },
+            prompt: tr("Choyxonadan Anvar akani toping va unga oltita tangangizni ko'rsating. U sizga maxfiy so'zni aytadi.", "Find Anvar aka at the choyxona and show him your six coins. He will tell you a secret word.", "Найдите Анвара ака в чайхане и покажите ему шесть монет. Он скажет секретное слово."),
+            reveal: tr("\"Yettinchisi menda edi — Afandi choy puli o'rniga qoldirgan. Endi tangalarni o'ziga olib boring: u eshagi ustida, hovuzning narigi tomonida.\"", "\"I had the seventh — Afandi left it instead of paying for his tea. Now take the coins to him: he sits on his donkey on the far side of the pool.\"", "«Седьмая была у меня — Афанди оставил её вместо платы за чай. Теперь отнесите монеты ему: он сидит на ослике на другой стороне пруда»."),
+            },
+          { id: "bux-lya-quiz", type: "quiz",
+            title: tr("Peshtoqdagi qushlar", "Birds on the portal", "Птицы на портале"),
+            prompt: tr("Nodir Devonbegi madrasasi peshtoqidagi qushlar nimaga qarab uchmoqda?", "On the Nadir Divan-Begi Madrasa portal, what are the birds flying towards?", "К чему летят птицы на портале медресе Надир-Диванбеги?"),
+            options: [tr("Oy va yulduzlarga", "The moon and stars", "К луне и звёздам"), tr("Inson yuzli quyoshga", "A sun with a human face", "К солнцу с человеческим лицом"), tr("Minoraga", "A minaret", "К минарету")], answer: 1 },
+          { id: "bux-lya-taste", type: "taste",
+            title: tr("Hovuz bo'yida choy", "Tea by the pool", "Чай у пруда"),
+            prompt: tr("Choyxonada ko'k choy va bir bo'lak holva tatib ko'ring.", "Try green tea and a piece of halva at the choyxona.", "Попробуйте в чайхане зелёный чай и кусочек халвы.") },
+          { id: "bux-lya-photo", type: "photo", rarity: "legendary",
+            title: tr("Bahs yutildi", "The bet is won", "Спор выигран"),
+            prompt: tr("Eshak mingan Afandi haykali yonida suratga tushing — yetti tanga sizda.", "Take a photo with the statue of Afandi on his donkey — all seven coins are yours.", "Сфотографируйтесь у памятника Афанди на ослике — все семь монет ваши.") }
+        ]
+      })
+    ],
+    dailies: [
+      { id: "bux-d-salom", title: tr("Uch marta \"Assalomu alaykum\"", "Three greetings", "Три приветствия"), prompt: tr("Bugun uchta do'kondorga \"Assalomu alaykum\" deb salom bering.", "Greet three shopkeepers today with \"Assalomu alaykum\".", "Поздоровайтесь сегодня с тремя продавцами: «Ассалому алейкум».") },
+      { id: "bux-d-sunset", title: tr("Minora ustida quyosh botishi", "Sunset on the minaret", "Закат на минарете"), prompt: tr("Quyosh botayotganda Minorai Kalonning rangi qanday o'zgarishini tomosha qiling.", "Watch the Kalyan Minaret change colour as the sun goes down.", "Посмотрите, как минарет Калян меняет цвет на закате.") },
+      { id: "bux-d-lanes", title: tr("Xaritasiz sayr", "A walk without a map", "Прогулка без карты"), prompt: tr("Eski shahar ko'chalarida 15 daqiqa xaritaga qaramasdan sayr qiling.", "Wander the old town lanes for 15 minutes without looking at a map.", "Погуляйте 15 минут по переулкам старого города, не глядя на карту.") },
+      { id: "bux-d-craft", title: tr("Usta ishini tomosha qiling", "Watch a master at work", "Посмотрите на работу мастера"), prompt: tr("Miniatyurachi, temirchi yoki zardo'zning ishini tomosha qiling.", "Watch a miniature painter, blacksmith or gold embroiderer at work.", "Посмотрите, как работает миниатюрист, кузнец или золотошвей.") },
+      { id: "bux-d-qancha", title: tr("\"Qancha?\"", "\"Qancha?\"", "«Қанча?»"), prompt: tr("Bozorda narxni o'zbekcha so'rang: \"Qancha?\"", "Ask a price at the market in Uzbek: \"Qancha?\" (How much?)", "Спросите цену на рынке по-узбекски: «Қанча?» (Сколько?)") }
+    ]
   }
 ];
 
@@ -491,7 +686,23 @@ export const OFFERS = [
   { id: "sam-restaurant", cityId: "samarkand", icon: "🍽️", kind: "restaurant", unlock: { city: "samarkand" },
     partner: tr("Samarqand oshxonasi (demo)", "Samarqand Oshxonasi (demo)", "Самарканд Ошхонаси (демо)"),
     deal: tr("Ikki kishilik kechki ovqatga 20% chegirma", "20% off dinner for two", "Скидка 20% на ужин для двоих"),
-    where: tr("Samarqand markazi", "Central Samarkand", "Центр Самарканда") }
+    where: tr("Samarqand markazi", "Central Samarkand", "Центр Самарканда") },
+  { id: "bux-tea", cityId: "bukhara", icon: "🫖", kind: "cafe", unlock: { place: "lyabi-hauz" },
+    partner: tr("Hovuz choyxonasi (demo)", "Choyxona Hovuz (demo)", "Чайхана Хауз (демо)"),
+    deal: tr("Choy bilan holva bepul", "Free halva with any pot of tea", "Халва в подарок к чайнику чая"),
+    where: tr("Labi Hovuz bo'yida", "By Lyabi-Hauz", "У Ляби-Хауза") },
+  { id: "bux-cafe", cityId: "bukhara", icon: "🥟", kind: "cafe", unlock: { place: "ark" },
+    partner: tr("Ark bo'yi kafesi (demo)", "Café by the Ark (demo)", "Кафе у Арка (демо)"),
+    deal: tr("2 ta somsa — 1 ta narxida", "2 somsa for the price of 1", "2 самсы по цене одной"),
+    where: tr("Ark qal'asi yonida", "Near the Ark Fortress", "Рядом с крепостью Арк") },
+  { id: "bux-shop", cityId: "bukhara", icon: "✂️", kind: "shop", unlock: { place: "toki" },
+    partner: tr("Laylak ustaxonasi (demo)", "Stork Forge (demo)", "Кузница Аист (демо)"),
+    deal: tr("Qo'lda yasalgan qaychilarga 10% chegirma", "10% off hand-forged scissors", "Скидка 10% на кованые ножницы"),
+    where: tr("Savdo gumbazlari yonida", "Near the Trading Domes", "Рядом с торговыми куполами") },
+  { id: "bux-restaurant", cityId: "bukhara", icon: "🍽️", kind: "restaurant", unlock: { city: "bukhara" },
+    partner: tr("Buxoro oshxonasi (demo)", "Buxoro Oshxonasi (demo)", "Бухара Ошхонаси (демо)"),
+    deal: tr("Ikki kishilik kechki ovqatga 20% chegirma", "20% off dinner for two", "Скидка 20% на ужин для двоих"),
+    where: tr("Buxoro markazi", "Central Bukhara", "Центр Бухары") }
 ];
 
 // Special stamps given as gifts for how and when you travel.
@@ -503,7 +714,8 @@ export const GIFT_STAMPS = [
   { id: "treasure-hunter", icon: "🧭", name: tr("Xazina ovchisi", "Treasure Hunter", "Охотник за сокровищами"), desc: tr("Xazina ovini yakunlang", "Finish a treasure hunt", "Завершите охоту за сокровищем") },
   { id: "first-deal", icon: "🎟️", name: tr("Birinchi sovg'a", "First Deal", "Первая скидка"), desc: tr("Birinchi kuponingizni oching", "Unlock your first coupon", "Откройте первый купон") },
   { id: "courier", icon: "✉️", name: tr("Chopar", "The Courier", "Курьер"), desc: tr("Toshkent hikoyasini yakunlang", "Finish the Tashkent story", "Завершите историю Ташкента") },
-  { id: "star-keeper", icon: "🌌", name: tr("Yulduz qo'riqchisi", "Star Keeper", "Хранитель звёзд"), desc: tr("Samarqand hikoyasini yakunlang", "Finish the Samarkand story", "Завершите историю Самарканда") }
+  { id: "star-keeper", icon: "🌌", name: tr("Yulduz qo'riqchisi", "Star Keeper", "Хранитель звёзд"), desc: tr("Samarqand hikoyasini yakunlang", "Finish the Samarkand story", "Завершите историю Самарканда") },
+  { id: "afandi-friend", icon: "🪙", name: tr("Afandining do'sti", "Afandi's Friend", "Друг Афанди"), desc: tr("Buxoro hikoyasini yakunlang", "Finish the Bukhara story", "Завершите историю Бухары") }
 ];
 
 export const BADGES = [
@@ -511,7 +723,8 @@ export const BADGES = [
   { id: "first-place", icon: "🏅", name: tr("Birinchi bob", "First Chapter", "Первая глава"), desc: tr("Bitta joyni to'liq yakunlang", "Finish every quest at one place", "Завершите все квесты в одном месте") },
   { id: "tashkent", icon: "🏙️", name: tr("Poytaxt bilimdoni", "Capital Insider", "Знаток столицы"), desc: tr("Toshkentni to'liq zabt eting", "Conquer all of Tashkent", "Покорите весь Ташкент") },
   { id: "samarkand", icon: "🕌", name: tr("Samarqand sirdoshi", "Keeper of Samarkand", "Хранитель Самарканда"), desc: tr("Samarqandni to'liq zabt eting", "Conquer all of Samarkand", "Покорите весь Самарканд") },
-  { id: "silk-road", icon: "🐫", name: tr("Ipak yo'li sayyohi", "Silk Road Voyager", "Путник Шёлкового пути"), desc: tr("Ikkala shaharni zabt eting", "Conquer both cities", "Покорите оба города") },
+  { id: "bukhara", icon: "🗼", name: tr("Buxoro donishmandi", "Sage of Bukhara", "Мудрец Бухары"), desc: tr("Buxoroni to'liq zabt eting", "Conquer all of Bukhara", "Покорите всю Бухару") },
+  { id: "silk-road", icon: "🐫", name: tr("Ipak yo'li sayyohi", "Silk Road Voyager", "Путник Шёлкового пути"), desc: tr("Ikki shaharni zabt eting", "Conquer two cities", "Покорите два города") },
   { id: "foodie", icon: "🍛", name: tr("Dasturxon ustasi", "Dastarkhan Master", "Мастер дастархана"), desc: tr("Barcha ta'm kvestlarini bajaring", "Complete every taste quest", "Выполните все вкусовые квесты") },
   { id: "scholar", icon: "🎓", name: tr("Ulug'bek shogirdi", "Ulugh Beg's Student", "Ученик Улугбека"), desc: tr("6 ta viktorina yoki topishmoqni yeching", "Solve 6 quizzes or riddles", "Решите 6 викторин или загадок") },
   { id: "photographer", icon: "📸", name: tr("Kadr ovchisi", "Frame Hunter", "Охотник за кадрами"), desc: tr("5 ta foto nuqtani suratga oling", "Shoot 5 photo spots", "Снимите 5 фото-точек") },
