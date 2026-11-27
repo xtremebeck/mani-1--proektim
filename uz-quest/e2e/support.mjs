@@ -17,7 +17,9 @@ const NETWORK_NOISE = /tile\.openstreetmap|fonts\.g|cdn\.jsdelivr|net::ERR_|Fail
 export async function openPage(context) {
   const page = await context.newPage();
   const errors = [];
-  page.on("console", (message) => { if (message.type() === "error" && !NETWORK_NOISE.test(message.text())) errors.push(message.text()); });
+  // A blocked load is a Content Security Policy bug even when it names a CDN, so it is never noise.
+  const counts = (text) => /Content Security Policy/i.test(text) || !NETWORK_NOISE.test(text);
+  page.on("console", (message) => { if (message.type() === "error" && counts(message.text())) errors.push(message.text()); });
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
   return { page, errors };
 }
