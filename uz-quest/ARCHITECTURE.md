@@ -144,7 +144,7 @@ Adding a city, place, quest, offer or badge means editing `content.mjs` only. Th
 | Shape | Command | What works |
 |---|---|---|
 | Full | `npm start` | Everything: sync, admin dashboard, voucher redemption, Claude guide |
-| Static | `npm run build` → `dist/` (GitHub Pages) | The whole game, offline-first. No sync, no admin. Hamroh uses its offline answers |
+| Static | `npm run build` → `dist/` | The whole game, offline-first. No sync, no admin. Hamroh uses its offline answers. GitHub Pages instead serves `REDIRECT_TO` pages that forward to the server |
 
 The app detects the server through `GET /api/v1/health` and degrades on its own when there is none.
 
@@ -211,7 +211,7 @@ Content and rules ship to the browser, so everything in them can be read from th
 - `backend/test/server.test.mjs` starts real server processes on temporary data files and covers crashes, status codes, rate limits, production settings, secret words and guessing limits, event cleaning and redemption.
 - `e2e/*.test.mjs` play the web app in headless Chromium against a real server: every screen, production settings, offline use, secret words checked online and offline, and a treasure hunt driven by live GPS. Any JavaScript error in the page fails the run.
 
-Run the first two with `npm test` and the browser tests with `npm run test:e2e`. CI runs both on every pull request and before each GitHub Pages deploy.
+Run the first two with `npm test` and the browser tests with `npm run test:e2e`. CI runs both on every pull request and before each deploy.
 
 ## Known limits and next steps
 
