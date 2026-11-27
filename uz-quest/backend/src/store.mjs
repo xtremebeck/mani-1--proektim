@@ -172,6 +172,20 @@ export class SqliteStore {
   // The file must not exist yet.
   backup(file) { this.#db.prepare("VACUUM INTO ?").run(file); }
 
+  // Rewrites stored events that mention a location: fn(event) returns the new event, or null to
+  // leave it as it is.
+  rewriteLocatedEvents(fn) {
+    const update = this.#db.prepare("UPDATE events SET data = ? WHERE rowid = ?");
+    let changed = 0;
+    this.transaction(() => {
+      for (const row of this.#db.prepare(`SELECT rowid, data FROM events WHERE data LIKE '%"lat"%'`).all()) {
+        const next = fn(JSON.parse(row.data));
+        if (next) { update.run(JSON.stringify(next), row.rowid); changed++; }
+      }
+    });
+    return changed;
+  }
+
   // Runs fn inside one transaction; any throw rolls everything back.
   transaction(fn) {
     this.#db.exec("BEGIN IMMEDIATE");

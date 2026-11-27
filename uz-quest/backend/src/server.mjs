@@ -45,6 +45,9 @@ try {
   store = new SqliteStore(databaseFile);
   const imported = store.importJson(legacyFile);
   if (imported) console.log(`Imported ${imported} devices from ${legacyFile} (kept as ${path.basename(legacyFile)}.imported).`);
+  // Events stored before locations were dropped (see withoutLocation).
+  const scrubbed = store.rewriteLocatedEvents(withoutLocation);
+  if (scrubbed) console.log(`Removed travellers' locations from ${scrubbed} stored events.`);
 } catch (error) {
   console.error(error.message);
   process.exit(1);
@@ -212,6 +215,19 @@ function cleanEvent(raw) {
   return event;
 }
 
+// A treasure hunt sends where the traveller stood, only to prove they reached the spot. Once it is
+// checked, the stored event gets the treasure's own coordinates, so the server never keeps anyone's
+// location, and replaying the event later (merging a phone into an account) still passes.
+// Returns null when there is nothing to change.
+function withoutLocation(event) {
+  if (event.lat === undefined && event.lng === undefined && event.accuracy === undefined) return null;
+  const quest = findQuest(event.questId)?.quest;
+  const { lat, lng, accuracy, ...rest } = event;
+  if (quest?.type !== "hunt") return rest;
+  if (lat === quest.lat && lng === quest.lng && accuracy === undefined) return null;
+  return { ...rest, lat: quest.lat, lng: quest.lng };
+}
+
 // limits.canCreateDevice(): may this address register another device?
 // limits.meetBlocked() / limits.meetWrong(): the wrong-secret-word budget of this address.
 // session: { accountId, deviceId } from the request's bearer token, or null.
@@ -251,7 +267,7 @@ async function sync(input, limits, session) {
       if (result.error === "WRONG_CODE") limits.meetWrong();
       if (!result.ok) { rejected.push({ id: raw.id, error: result.error }); continue; }
       owner.state = result.state;
-      fresh.push(event);
+      fresh.push(withoutLocation(event) ?? event);
       known.add(raw.id);
       accepted.push(raw.id);
     }
